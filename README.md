@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banner.jpg" alt="dsh-expression — 找得到、发得出" width="100%" />
+  <img src="docs/hero.jpg" alt="dsh-expression — 找得到、发得出" width="100%" />
 </p>
 
 <p align="center">
@@ -50,7 +50,7 @@ agent preset 里加一行（`dsh-companion` 需先行并启用 `qq.enabled`，�
     memeRoot: /home/you/.hermes/meme-packs/official-001   # 可选，默认 ~/.hermes/meme-packs/official-001
 ```
 
-装完新开一个「陪伴模式」会话，模型就会看到 `send_meme`。
+装完后新开一个会话，模型就会看到 `send_meme`。
 
 ## 装完即用
 

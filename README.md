@@ -1,20 +1,35 @@
-# dsh-expression
+<p align="center">
+  <strong>表情包插件 dsh-expression</strong> — 找得到、发得出
+</p>
 
-selfloom 表情包层作为 DeepSeek Harness 插件：模型随时选一张表情包发出去，情绪到了就发，不用等要求。
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT" /></a>
+  <a href="https://github.com/topics/dsh-plugin"><img src="https://img.shields.io/badge/topic-dsh--plugin-amber?style=flat-square" alt="dsh-plugin" /></a>
+  <img src="https://img.shields.io/badge/Host-DeepSeek%20Harness-informational?style=flat-square" alt="DeepSeek Harness" />
+  <img src="https://img.shields.io/badge/Deps-node%3Asqlite%20only-blue?style=flat-square" alt="zero third-party deps" />
+  <img src="https://img.shields.io/badge/Data-selfloom%20compatible-lightgrey?style=flat-square" alt="selfloom compatible" />
+</p>
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+---
 
-## 特性
+聊天 Agent 斗图最容易翻车的三件事：
 
-- **数据零迁移**：直接读 selfloom 的表情包库（`~/.hermes/meme-packs/official-001/`，SQLite 索引 `index.db` + `memes/<tag>/` 图片文件）
-- **语义搜索**：bigram Dice 相似度 + 口语同义词兜底（说「摸鱼」能搜到「下班/工作」分类的图）；无命中时返回图库分类清单引导重试
-- **主动性设计**：工具描述鼓励"情绪到了直接发"，发完不啰嗦、不复述图
-- **零第三方依赖**：只用 Node 内置 `node:sqlite` + DSH 的 `tools` 服务；发图走 `companionQq` 服务（由 `dsh-companion` 的 QQ 通道提供）
+- 手写假路径  
+- 乱发不贴题的图  
+- 搜不到就硬发  
+
+**dsh-expression** 是 DeepSeek Harness 的表情包插件：直接读你现成的表情包库，语义检索后只发**真实存在的文件**。  
+数据来自 [selfloom](https://github.com/yyh-001/selfloom)（单用户陪伴 agent）的表情包库——**零迁移、开箱即搜**。发送走 [`dsh-companion`](https://github.com/yyh-001/dsh-companion) 的 QQ 通道（`companionQq` 服务）；没有 QQ 通道就不挂工具，绝不给模型一个发不出去的空工具。
+
+想换一套聊天搭子人设？另装 **[dsh-companion](https://github.com/yyh-001/dsh-companion)**（人设 + Hermes 记忆 + QQ 通道）——两者独立、可选搭配，本仓不含人设。
+
+---
 
 ## 安装
 
+在 DSH profile 目录（如 `~/.dsh/profiles/web/`）：
+
 ```bash
-# 在 DSH profile 目录
 pnpm add file:/path/to/dsh-expression
 # 或从 GitHub:
 pnpm add github:yyh-001/dsh-expression
@@ -22,32 +37,79 @@ pnpm add github:yyh-001/dsh-expression
 
 ## 配置
 
-agent preset 里加一行（需要 `dsh-companion` 先行并启用 `qq.enabled`，否则 `send_meme` 不注册）：
+agent preset 里加一行（`dsh-companion` 需先行并启用 `qq.enabled`，否则 `send_meme` 不注册）：
 
 ```yaml
 - id: selfloom-expression
   name: dsh-expression
   config:
-    memeRoot: /home/you/.hermes/meme-packs/official-001   # 可选,默认 ~/.hermes/meme-packs/official-001
+    memeRoot: /home/you/.hermes/meme-packs/official-001   # 可选，默认 ~/.hermes/meme-packs/official-001
 ```
 
-## 工具
+装完新开一个「陪伴模式」会话，模型就会看到 `send_meme`。
 
-| 工具 | 说明 |
-|---|---|
-| `send_meme` | 按情绪/内容搜索图库（`query` 如「无语」「下班」，或 `tag` 分类），选最佳匹配经 QQ 通道发图；无命中列出分类让模型换词重试 |
+## 装完即用
 
-## 工作原理
+```text
+用户: 发个无语的表情包
+模型: （调 send_meme query=「无语」→ 拿到真实路径 → 经 QQ 通道发图）
+```
 
-- 索引只读打开（`DatabaseSync` readOnly），搜索在内存做 Dice 相似度排序；
-- 发送依赖 `companionQq` 服务的 `sendImage(path, caption?)`——`dsh-companion` 的 QQ 通道启用时自动提供，`dsh-expression` 监听 `companionQq/available` 事件注册工具；
-- 路径安全：索引内相对路径解析时禁止逃出图库根。
+```bash
+# 或直接在会话里让模型自检图库:
+# 「send_meme 搜一下'下班'有什么」
+```
+
+## 它做什么
+
+| 能力 | 说明 |
+|------|------|
+| **语义搜图** | 口语 query → bigram Dice 相似度排序；口语词同义词兜底（「摸鱼」→ 下班/工作分类） |
+| **真实路径发出** | 索引内相对路径解析后禁止逃出图库根，只发 `MemesStore` 返回的真实文件 |
+| **情绪主动发图** | 工具描述鼓励"情绪到了直接发"；发完不啰嗦、不复述图 |
+| **数据零迁移** | 直接读 selfloom 图库（`index.db` SQLite 只读 + `memes/<tag>/` 图片），无需任何导入步骤 |
+
+## 日常命令（模型视角）
+
+```text
+send_meme query=「想下班」          # 语义检索 + 发送
+send_meme tag=shy                  # 按分类发一张
+send_meme query=「不存在的词」      # 无命中 → 返回图库分类清单，引导换词重试
+```
+
+数据根目录可用 `config.memeRoot` 覆盖（默认 `~/.hermes/meme-packs/official-001`，与 selfloom 的 `SELFLOOM_MEME_ROOT` 语义一致）。
+
+## 给模型的三条铁律
+
+完整约定见 `send_meme` 工具描述。
+
+1. 只用 `MemesStore` 返回的真实路径，不手写路径、不自己 `ls` 挑图  
+2. 搜失败就回文字、列分类让用户换词，别硬发  
+3. 发完保持简短，让图自己说话——不复述、不描述图的内容
+
+## 接到你的 Agent
+
+| 组件 | 说明 |
+|------|------|
+| **dsh-expression** | 本插件：`MemesStore`（检索）+ `send_meme`（发送） |
+| **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + QQ 通道；提供 `companionQq` 服务供发图 |
+| **图库** | selfloom 表情包库（`~/.hermes/meme-packs/official-001/`），来自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) 系图包 |
+
+```text
+dsh-expression/
+  index.js        插件入口：memeRoot 配置 + companionQq 服务消费
+  memes.js        MemesStore：SQLite 只读索引 + bigram Dice 检索 + 路径安全
+  package.json    name / inject / peer deps
+  README.md
+  LICENSE
+```
 
 ## 已知限制
 
 - 管理操作（上传/删除/改元数据）未移植——图库维护仍走原 selfloom 控制台或直接操作目录；
-- 发送目标是 QQ 通道的"最近聊天"（与 `dsh-companion` 的单目标 MVP 一致）。
+- 发送目标是 QQ 通道的"最近聊天"（与 dsh-companion 的单目标 MVP 一致）；
+- 检索算法与 selfloom 原版一致（bigram Dice），部分口语词的匹配质量取决于图库 caption。
 
 ## License
 
-[MIT](LICENSE)
+[MIT](./LICENSE)

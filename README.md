@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="docs/banner.jpg" alt="dsh-expression — 找得到、发得出" width="100%" />
+</p>
+
+<p align="center">
   <strong>表情包插件 dsh-expression</strong> — 找得到、发得出
 </p>
 

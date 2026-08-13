@@ -1,0 +1,11 @@
+{
+  "name": "dsh-expression",
+  "version": "0.1.0",
+  "description": "selfloom 表情包层作为 DeepSeek Harness 插件:直接读 selfloom 表情包库(SQLite 索引 + 图片),bigram Dice 搜索,经 dsh-companion 的 QQ 通道发图。",
+  "type": "module",
+  "main": "index.js",
+  "private": true,
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "*"
+  }
+}

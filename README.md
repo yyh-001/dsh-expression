@@ -94,6 +94,8 @@ pnpm add file:/path/to/dsh-expression
 
 输入框 😊 一键发表情包：点开面板 → 搜索 / 浏览缩略图 → 点一张直接发出（点外部自动收起）。
 
+> 配合 [dsh-companion](https://github.com/yyh-001/dsh-companion)（陪伴插件），模型也可以根据情绪主动发送表情包——情绪到了直接发。
+
 <p align="center">
   <img src="docs/quick-picker.png" alt="dsh-expression 输入框一键发表情包" />
 </p>

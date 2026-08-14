@@ -1,0 +1,8 @@
+# dsh-expression bundle patch: host plugin (send_meme + /dsh-memes) and
+# client settings section. Activate with
+# `dsh plugin --profile web add file:/path/to/dsh-expression`.
+- insert:
+    - id: dsh-expression
+      name: dsh-expression
+      config:
+        memeRoot: /home/yyh/.hermes/meme-packs/official-001

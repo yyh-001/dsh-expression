@@ -66,6 +66,20 @@ agent preset 里加一行（`dsh-companion` 需先行并启用 `qq.enabled`，�
 # 「send_meme 搜一下'下班'有什么」
 ```
 
+实际效果（会话里让模型发表情包，search 选图 → 发出）：
+
+<p align="center">
+  <img src="docs/chat-example.png" alt="dsh-expression 在会话中发表情包的示例" />
+</p>
+
+## 界面
+
+设置页「表情包」面板：浏览 / 编辑 / 删除图库，也可直接上传新图。
+
+<p align="center">
+  <img src="docs/settings-panel.png" alt="dsh-expression 设置页表情包管理面板" />
+</p>
+
 ## 它做什么
 
 | 能力 | 说明 |
@@ -93,18 +107,29 @@ send_meme query=「不存在的词」      # 无命中 → 返回图库分类清
 2. 搜失败就回文字、列分类让用户换词，别硬发  
 3. 发完保持简短，让图自己说话——不复述、不描述图的内容
 
+## 图库来源
+
+内置默认图库（`id: official-001`，名「官方表情包1号」）来自 **Astrbot mememanager 官方初始表情包**：
+
+- 上游仓库：[anka-afk/astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01)（`main` 分支），维护者 **anka-afk**
+- 构成：`index.db`（SQLite 索引，含每张 caption/关键词，供语义检索）+ `manifest.json`（分类说明 + 来源标注）+ `memes/<tag>/` 图片 + `previews/`
+- 本仓库内置版本已删减 8 张不合适的图片（92 张），索引与磁盘保持一致
+- ⚠️ 上游**未提供 LICENSE**：这套图缺乏显式的再分发许可。随插件打包作为个人默认库使用没问题；如需公开对外分发，请保留 manifest.json 中的上游来源标注。
+
 ## 接到你的 Agent
 
 | 组件 | 说明 |
 |------|------|
 | **dsh-expression** | 本插件：`MemesStore`（检索）+ `send_meme`（发送） |
 | **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + QQ 通道；提供 `companionQq` 服务供发图 |
-| **图库** | selfloom 表情包库（`~/.hermes/meme-packs/official-001/`），来自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) 系图包 |
+| **图库** | 内置默认图库 `memes/official-001/`（可 `memeRoot` 覆盖），源自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) |
 
 ```text
 dsh-expression/
   index.js        插件入口：memeRoot 配置 + companionQq 服务消费
   memes.js        MemesStore：SQLite 只读索引 + bigram Dice 检索 + 路径安全
+  memes/
+    official-001/   内置默认图库（index.db + manifest.json + memes/<tag>/）
   package.json    name / inject / peer deps
   README.md
   LICENSE

@@ -1,0 +1,4 @@
+# dsh-expression-entry bundle patch: insert the settings-page entry plugin.
+- insert:
+    - id: dsh-expression-entry
+      name: dsh-expression-entry

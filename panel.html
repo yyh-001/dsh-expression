@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>表情包管理</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --card: #ffffff; --border: #d9d9e3; --text: #1c1c28;
+    --muted: #6b6b7b; --accent: #4f6ef7; --err: #d64545; --ok: #2e9e5b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16161e; --card: #20202c; --border: #36364a; --text: #e8e8f0;
+      --muted: #9a9ab0; --accent: #7b93ff; --err: #ff6b6b; --ok: #4cc38a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 20px; margin: 4px 0 16px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  input[type=text], select, textarea {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; font-size: 14px; outline: none;
+  }
+  input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; font-family: inherit; }
+  button {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 14px; font-size: 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .total { color: var(--muted); font-size: 13px; }
+  .notice { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px; font-size: 13px; }
+  .notice.err { color: var(--err); border-color: var(--err); }
+  .notice.ok { color: var(--ok); border-color: var(--ok); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--card); display: flex; flex-direction: column; }
+  .card img { width: 100%; height: 120px; object-fit: cover; display: block; background: var(--bg); }
+  .meta { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-height: 84px; }
+  .tag { font-size: 11px; color: var(--accent); text-transform: lowercase; }
+  .cap { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .acts { display: flex; gap: 6px; margin-top: auto; }
+  .acts button { padding: 4px 10px; font-size: 12px; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+  .api { color: var(--muted); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>😼 表情包管理</h1>
+  <div class="row">
+    <input type="text" id="q" placeholder="搜索描述/关键词" style="width: 200px">
+    <select id="tagFilter"><option value="">全部分类</option></select>
+    <button id="searchBtn">搜索</button>
+    <button id="resetBtn">重置</button>
+    <span class="total" id="total"></span>
+  </div>
+  <div class="row">
+    <input type="text" id="upTag" placeholder="新图分类(如 happy)" style="width: 150px">
+    <button class="primary" id="uploadBtn">上传表情包</button>
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+  </div>
+  <div id="notice"></div>
+  <div class="grid" id="grid"></div>
+  <div class="api">数据与 selfloom 图库同源(index.db + memes/ 目录);API: GET/POST /dsh-memes-api</div>
+</div>
+<script>
+'use strict'
+const $ = (id) => document.getElementById(id)
+let memes = [], tags = [], editing = null
+
+function notice(msg, kind) {
+  const el = $('notice')
+  el.className = 'notice' + (kind ? ' ' + kind : '')
+  el.textContent = msg
+}
+
+async function apiGet(params) {
+  const qs = new URLSearchParams()
+  if (params.tag) qs.set('tag', params.tag)
+  if (params.q) qs.set('q', params.q)
+  const res = await fetch('/dsh-memes-api?' + qs.toString())
+  return res.json()
+}
+async function apiPost(payload) {
+  const res = await fetch('/dsh-memes-api', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return res.json()
+}
+
+async function load() {
+  const res = await apiGet({ q: $('q').value.trim(), tag: $('tagFilter').value })
+  if (!res.ok) { notice('加载失败: ' + (res.error || ''), 'err'); return }
+  memes = res.memes; tags = res.tags
+  $('total').textContent = res.total + ' 张'
+  const sel = $('tagFilter')
+  const current = sel.value
+  sel.innerHTML = '<option value="">全部分类</option>' + tags.map((t) => '<option value="' + t + '">' + t + '</option>').join('')
+  sel.value = current
+  render()
+}
+
+function render() {
+  const grid = $('grid')
+  if (memes.length === 0) {
+    grid.innerHTML = '<div class="empty">没有匹配的表情包</div>'
+    return
+  }
+  grid.innerHTML = ''
+  for (const m of memes) {
+    const card = document.createElement('div')
+    card.className = 'card'
+    const img = document.createElement('img')
+    img.src = m.url || ''; img.alt = m.path; img.loading = 'lazy'
+    card.appendChild(img)
+    const meta = document.createElement('div')
+    meta.className = 'meta'
+    if (editing === m.path) {
+      const tagInput = document.createElement('input')
+      tagInput.type = 'text'; tagInput.value = m.tag; tagInput.placeholder = '分类'
+      const capInput = document.createElement('textarea')
+      capInput.rows = 2; capInput.value = m.caption || ''; capInput.placeholder = '描述'
+      const kwInput = document.createElement('input')
+      kwInput.type = 'text'; kwInput.value = m.keywords || ''; kwInput.placeholder = '关键词'
+      const acts = document.createElement('div'); acts.className = 'acts'
+      const save = document.createElement('button'); save.textContent = '保存'
+      save.onclick = async () => {
+        const res = await apiPost({ op: 'update', path: m.path, tag: tagInput.value, caption: capInput.value, keywords: kwInput.value })
+        notice(res.ok ? '已保存' : '保存失败: ' + (res.error || ''), res.ok ? 'ok' : 'err')
+        editing = null
+        load()
+      }
+      const cancel = document.createElement('button'); cancel.textContent = '取消'
+      cancel.onclick = () => { editing = null; render() }
+      acts.appendChild(save); acts.appendChild(cancel)
+      meta.append(tagInput, capInput, kwInput, acts)
+    } else {
+      const tag = document.createElement('div'); tag.className = 'tag'; tag.textContent = m.tag
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = m.caption || m.file_name
+      const acts = document.createElement('div'); acts.className = 'acts'
+      const edit = document.createElement('button'); edit.textContent = '编辑'
+      edit.onclick = () => { editing = m.path; render() }
+      const del = document.createElement('button'); del.textContent = '删除'
+      del.onclick = async () => {
+        if (!window.confirm('删除 ' + m.path + ' ?')) return
+        const res = await apiPost({ op: 'delete', path: m.path })
+        notice(res.ok ? '已删除' : '删除失败: ' + (res.error || ''), res.ok ? 'ok' : 'err')
+        load()
+      }
+      acts.appendChild(edit); acts.appendChild(del)
+      meta.append(tag, cap, acts)
+    }
+    card.appendChild(meta)
+    grid.appendChild(card)
+  }
+}
+
+$('searchBtn').onclick = load
+$('resetBtn').onclick = () => { $('q').value = ''; $('tagFilter').value = ''; load() }
+$('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') load() })
+$('uploadBtn').onclick = () => $('fileInput').click()
+$('fileInput').onchange = async (e) => {
+  const file = e.target.files && e.target.files[0]
+  e.target.value = ''
+  if (!file) return
+  if (!/\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)) { notice('仅支持 jpg/png/gif/webp', 'err'); return }
+  const tag = $('upTag').value.trim().toLowerCase()
+  if (!tag) { notice('先填新图分类(tag)', 'err'); return }
+  $('uploadBtn').disabled = true
+  const reader = new FileReader()
+  reader.onload = async () => {
+    const data = String(reader.result || '').split(',')[1] || ''
+    const res = await apiPost({ op: 'upload', tag, fileName: file.name, dataBase64: data })
+    notice(res.ok && res.meme ? '已上传: ' + res.meme.path : '上传失败: ' + (res.error || ''), res.ok ? 'ok' : 'err')
+    $('uploadBtn').disabled = false
+    load()
+  }
+  reader.onerror = () => { $('uploadBtn').disabled = false; notice('读取文件失败', 'err') }
+  reader.readAsDataURL(file)
+}
+
+load()
+</script>
+</body>
+</html>

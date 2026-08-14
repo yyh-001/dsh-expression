@@ -25,6 +25,8 @@
 **dsh-expression** 是 DeepSeek Harness 的表情包插件：直接读你现成的表情包库，语义检索后只发**真实存在的文件**。  
 数据来自 [selfloom](https://github.com/yyh-001/selfloom)（单用户陪伴 agent）的表情包库——**零迁移、开箱即搜**。发送走 [`dsh-companion`](https://github.com/yyh-001/dsh-companion) 的 QQ 通道（`companionQq` 服务）；没有 QQ 通道就不挂工具，绝不给模型一个发不出去的空工具。
 
+**配合陪伴插件 dsh-companion 的效果**：不需要任何插件 API，模型会结合会话上下文主动判断情绪、恰到好处地发一张贴题的表情包——情绪到了直接发，实现「陪伴式斗图」。
+
 想换一套聊天搭子人设？另装 **[dsh-companion](https://github.com/yyh-001/dsh-companion)**（人设 + Hermes 记忆 + QQ 通道）——两者独立、可选搭配，本仓不含人设。
 
 交流 / 反馈：**QQ 群 [993579665](https://qm.qq.com/q/7AD2g70HqS)**（[点击加入](https://qm.qq.com/q/7AD2g70HqS)）

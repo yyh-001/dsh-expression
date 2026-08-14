@@ -113,7 +113,7 @@ send_meme tag=shy                  # 按分类发一张
 send_meme query=「不存在的词」      # 无命中 → 返回图库分类清单，引导换词重试
 ```
 
-数据根目录可用 `config.memeRoot` 覆盖（默认 `~/.hermes/meme-packs/official-001`，与 selfloom 的 `SELFLOOM_MEME_ROOT` 语义一致）。
+数据根目录默认是随包内置的 `memes/official-001`；可用 `config.memeRoot` 覆盖到别处。
 
 ## 给模型的三条铁律
 

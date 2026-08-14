@@ -80,8 +80,10 @@ pnpm add file:/path/to/dsh-expression
 
 实际效果（会话里让模型发表情包，search 选图 → 发出）：
 
+配合 [dsh-companion](https://github.com/yyh-001/dsh-companion)（陪伴插件），模型也可以根据情绪主动发送表情包——情绪到了直接发。
+
 <p align="center">
-  <img src="docs/chat-example.png" alt="dsh-expression 在会话中发表情包的示例" />
+  <img src="docs/chat-example.png" alt="配合 dsh-companion，模型根据情绪主动发表情包" />
 </p>
 
 ## 界面
@@ -93,8 +95,6 @@ pnpm add file:/path/to/dsh-expression
 </p>
 
 输入框 😊 一键发表情包：点开面板 → 搜索 / 浏览缩略图 → 点一张直接发出（点外部自动收起）。
-
-> 配合 [dsh-companion](https://github.com/yyh-001/dsh-companion)（陪伴插件），模型也可以根据情绪主动发送表情包——情绪到了直接发。
 
 <p align="center">
   <img src="docs/quick-picker.png" alt="dsh-expression 输入框一键发表情包" />

@@ -80,12 +80,19 @@ agent preset 里加一行（`dsh-companion` 需先行并启用 `qq.enabled`，�
   <img src="docs/settings-panel.png" alt="dsh-expression 设置页表情包管理面板" />
 </p>
 
+输入框 😊 一键发表情包：点开面板 → 搜索 / 浏览缩略图 → 点一张直接发出（点外部自动收起）。
+
+<p align="center">
+  <img src="docs/quick-picker.png" alt="dsh-expression 输入框一键发表情包" />
+</p>
+
 ## 它做什么
 
 | 能力 | 说明 |
 |------|------|
 | **语义搜图** | 口语 query → bigram Dice 相似度排序；口语词同义词兜底（「摸鱼」→ 下班/工作分类） |
 | **真实路径发出** | 索引内相对路径解析后禁止逃出图库根，只发 `MemesStore` 返回的真实文件 |
+| **输入框一键发图** | 会话输入框左侧 😊 按钮 → 悬浮面板选图 → 一点即发；点外部自动收起 |
 | **情绪主动发图** | 工具描述鼓励"情绪到了直接发"；发完不啰嗦、不复述图 |
 | **数据零迁移** | 直接读 selfloom 图库（`index.db` SQLite 只读 + `memes/<tag>/` 图片），无需任何导入步骤 |
 

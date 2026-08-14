@@ -1,10 +1,17 @@
 {
   "name": "dsh-expression",
   "version": "0.1.0",
-  "description": "selfloom 表情包层作为 DeepSeek Harness 插件:直接读 selfloom 表情包库(SQLite 索引 + 图片),bigram Dice 搜索,经 QQ 通道或 Web 对话发图;设置页内置管理面板。",
+  "description": "DeepSeek Harness 表情包插件:内置默认图库(官方-001,92 张),bigram Dice 语义检索,send_meme 发图(Web/QQ),设置页管理面板。",
   "type": "module",
   "main": "index.js",
-  "private": true,
+  "files": [
+    "index.js",
+    "memes.js",
+    "client.js",
+    "panel.html",
+    "memes/",
+    "docs/"
+  ],
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -25,5 +32,16 @@
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": "*"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "meme",
+    "emoticon",
+    "sticker"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
   }
 }

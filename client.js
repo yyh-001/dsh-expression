@@ -219,6 +219,163 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // ---- 输入框快捷发图(QQ 式):😊 按钮 + 悬浮面板 ----
+    const memePickerCSS = [
+      '.meme-trigger{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;cursor:pointer;color:var(--dsw-alias-label-secondary);background:transparent;border:none;font-size:17px;line-height:1;outline:none}',
+      '.meme-trigger:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}',
+      '.meme-trigger.active{color:var(--dsw-alias-brand-primary)}',
+      '.meme-picker{position:absolute;bottom:calc(100% + 8px);left:0;width:min(340px,88vw);z-index:30;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px;padding:10px;max-height:42vh;overflow:hidden;font-size:12px;color:var(--dsw-alias-label-primary)}',
+      '.meme-picker .mp-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}',
+      '.meme-picker input[type=text]{flex:1;min-width:120px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:4px 8px;font-size:12px;outline:none}',
+      '.meme-picker input[type=text]:focus{border-color:var(--dsw-alias-brand-primary)}',
+      '.meme-picker .mp-tags{display:flex;gap:4px;flex-wrap:wrap;max-width:100%}',
+      '.meme-picker .mp-tag{padding:2px 8px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);cursor:pointer;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px}',
+      '.meme-picker .mp-tag.on{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-layer-1)}',
+      '.meme-picker .mp-grid{overflow-y:auto;display:flex;flex-wrap:wrap;gap:6px;max-height:36vh}',
+      '.meme-picker .mp-cell{width:74px;height:74px;flex:0 0 74px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden;cursor:pointer;background:var(--dsw-alias-bg-layer-2);padding:0;display:block;transition:border-color .12s}',
+      '.meme-picker .mp-cell:hover{border-color:var(--dsw-alias-brand-primary)}',
+      '.meme-picker .mp-empty{color:var(--dsw-alias-label-secondary);text-align:center;padding:24px 0}',
+    ].join('')
+
+    function makeMemeStore() {
+      let open = false
+      let base = ''
+      const subs = new Set()
+      return {
+        get: () => open,
+        set: (v) => { open = !!v; subs.forEach((fn) => fn()) },
+        toggle: () => { open = !open; subs.forEach((fn) => fn()) },
+        subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn) },
+        setBase: (s) => { base = s || '' },
+        getBase: () => base,
+      }
+    }
+
+    function makeMemeButton(store) {
+      return function MemeButton(props) {
+        const open = React.useSyncExternalStore(store.subscribe, store.get)
+        return React.createElement('button', {
+          className: open ? 'meme-trigger active' : 'meme-trigger',
+          title: '表情包',
+          onClick: (e) => {
+            e.preventDefault(); e.stopPropagation()
+            if (!store.get()) {
+              const d = props && props.input && typeof props.input.draft === 'string' ? props.input.draft : ''
+              store.setBase(d)
+            }
+            store.toggle()
+          },
+        }, '😊')
+      }
+    }
+
+    function MemeBoard(props) {
+      const h = React.createElement
+      const store = props.store
+      const actions = props.inputActions
+      const open = React.useSyncExternalStore(store.subscribe, store.get)
+      const [memes, setMemes] = React.useState([])
+      const [q, setQ] = React.useState('')
+
+      React.useEffect(() => {
+        if (!open) return
+        let alive = true
+        const qs = new URLSearchParams()
+        if (q) qs.set('q', q)
+        fetch('/dsh-memes-api?' + qs.toString())
+          .then((r) => r.json())
+          .then((res) => {
+            if (!alive || !res || !res.ok) return
+            setMemes(res.memes || [])
+          })
+          .catch(() => {})
+        return () => { alive = false }
+      }, [open, q])
+
+      // 点外部(非面板、非 😊 按钮)自动收起。
+      React.useEffect(() => {
+        if (!open) return
+        const onDown = (e) => {
+          const t = e && e.target
+          if (t && t.closest && !t.closest('.meme-picker') && !t.closest('.meme-trigger')) {
+            store.set(false)
+          }
+        }
+        document.addEventListener('pointerdown', onDown)
+        return () => document.removeEventListener('pointerdown', onDown)
+      }, [open])
+
+      if (!open) return null
+
+      // 点击:直接发送(QQ 式)。优先发真图(附件管线),失败再退回文字。
+      // 不附带任何 caption/描述文字,也不触发识图——就安静发图。
+      const send = async (m) => {
+        if (!m || !m.url) return
+        const md = '![' + (m.tag || 'meme') + '](' + m.url + ')'
+        const setText = (text) => { try { if (actions && actions.setDraft) actions.setDraft(text) } catch (e) {} }
+
+        // 走附件管线发真图:fetch URL → File → createDraftImages → addImages → submit
+        try {
+          const conv = (typeof props.getConversation === 'function' && props.getConversation()) || null
+          const doAdd = actions && typeof actions.addImages === 'function'
+          if (conv && doAdd && typeof conv.createDraftImages === 'function') {
+            const blob = await fetch(m.url).then((r) => r.blob())
+            const name = (m.file_name || String(m.path || '').split('/').pop() || 'meme.jpg')
+            let file
+            try { file = new File([blob], name, { type: blob.type || 'image/jpeg' }) }
+            catch (e) { file = null }
+            if (file) {
+              let imgs
+              try { imgs = conv.createDraftImages([file]) } catch (e) { imgs = null }
+              if (imgs && imgs.length && imgs[0].id && actions.addImages([imgs[0].id])) {
+                // 保留用户已打的文本(不附加描述)。
+                const cur = store.getBase() || ''
+                setText(cur || '')
+                try { if (actions.submit) actions.submit() } catch (e) {}
+                store.setBase('')
+                store.set(false)
+                return
+              }
+            }
+          }
+        } catch (e) {}
+        // 兜底:文字 markdown
+        const cur = store.getBase() || ''
+        setText(cur ? (cur.trim() ? cur + '\n' + md : md) : md)
+        try {
+          if (actions && actions.submit) actions.submit()
+        } catch (e) {}
+        store.setBase('')
+        store.set(false)
+      }
+
+      const searchInput = h('input', {
+        type: 'text', placeholder: '搜表情/情绪', value: q,
+        onChange: (e) => setQ(e.target.value),
+      })
+      const clearBtn = h('button', {
+        className: 'mp-tag', style: { marginLeft: 'auto' },
+        onClick: () => { setQ('') },
+      }, '复位')
+      const cells = memes.map((m) => h('div', {
+        key: m.path, className: 'mp-cell', title: m.caption || m.file_name, onClick: () => send(m),
+        style: {
+          width: '74px', height: '74px',
+          backgroundImage: 'url(' + m.url + ')',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center center',
+          backgroundRepeat: 'no-repeat',
+        },
+      }))
+
+      return h('div', { className: 'meme-picker', onClick: (e) => e.stopPropagation() },
+        h('div', { className: 'mp-row' }, searchInput, clearBtn),
+        memes.length === 0
+          ? h('div', { className: 'mp-empty' }, '没有匹配的表情包')
+          : h('div', { className: 'mp-grid' }, cells),
+      )
+    }
+
     const inject = ['slots']
 
     function apply(ctx) {
@@ -227,11 +384,31 @@ window.__ModuleLoader__.load({
       document.head.appendChild(styleEl)
       ctx.effect(() => () => { styleEl.remove() }, 'dsh-expression-entry: styles')
 
+      const pickerStyle = document.createElement('style')
+      pickerStyle.textContent = memePickerCSS
+      document.head.appendChild(pickerStyle)
+      ctx.effect(() => () => { pickerStyle.remove() }, 'dsh-expression-entry: meme-picker styles')
+
       const slots = ctx.get('slots')
       if (slots === undefined) return
       slots.inject('settings.section', () => slots.register(
         { name: 'settings.section', id: 'memes', order: 25, label: '表情包' },
         () => React.createElement(MemePanel),
+      ))
+
+      // 输入框快捷发图(QQ 式)。
+      const store = makeMemeStore()
+      slots.inject('conversation.input.left', () => slots.register(
+        { name: 'conversation.input.left', id: 'meme-picker', order: 5, label: '表情包' },
+        (props) => React.createElement(makeMemeButton(store), { input: props.input }),
+      ))
+      slots.inject('conversation.input.overlay', () => slots.register(
+        { name: 'conversation.input.overlay', id: 'meme-picker', order: 5, label: '表情包' },
+        (props) => React.createElement(MemeBoard, {
+          store,
+          inputActions: props.inputActions,
+          getConversation: () => ctx.get('conversation'),
+        }),
       ))
     }
 

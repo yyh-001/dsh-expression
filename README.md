@@ -33,23 +33,30 @@
 
 ## 安装
 
-在 DSH profile 目录（如 `~/.dsh/profiles/web/`）：
+已发布到 **npm**（`dsh-expression@0.1.0`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
 
 ```bash
+dsh plugin --profile web add dsh-expression
+# 等价于:
+pnpm add dsh-expression
+```
+
+或从 GitHub / 本地直接装：
+
+```bash
+pnpm add github:yyh-001/dsh-expression   # 或
 pnpm add file:/path/to/dsh-expression
-# 或从 GitHub:
-pnpm add github:yyh-001/dsh-expression
 ```
 
 ## 配置
 
-agent preset 里加一行（`dsh-companion` 需先行并启用 `qq.enabled`，否则 `send_meme` 不注册）：
+默认直接内置图库（`memes/official-001`），开箱即用，绝大多数情况**无需任何配置**。若你要指向别的图库，在 cordis.yml 里加一行覆盖 `memeRoot`：
 
 ```yaml
 - id: selfloom-expression
   name: dsh-expression
   config:
-    memeRoot: /home/you/.hermes/meme-packs/official-001   # 可选，默认 ~/.hermes/meme-packs/official-001
+    memeRoot: /your/path/to/meme-pack   # 可选；默认内置 memes/official-001
 ```
 
 装完后新开一个会话，模型就会看到 `send_meme`。
@@ -58,11 +65,13 @@ agent preset 里加一行（`dsh-companion` 需先行并启用 `qq.enabled`，�
 
 ```text
 用户: 发个无语的表情包
-模型: （调 send_meme query=「无语」→ 拿到真实路径 → 经 QQ 通道发图）
+模型: 调 send_meme query=「无语」→ 拿到真实文件 → 发图并简短接话
 ```
 
+也可以在输入框左侧点 **😊** 直接选图一键发出，无需让模型代劳：
+
 ```bash
-# 或直接在会话里让模型自检图库:
+# 模型视角自检图库:
 # 「send_meme 搜一下'下班'有什么」
 ```
 

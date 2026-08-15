@@ -18,7 +18,8 @@
     "client.js",
     "panel.html",
     "memes/",
-    "docs/"
+    "docs/",
+    "cordis.patch.yml"
   ],
   "exports": {
     ".": "./index.js",

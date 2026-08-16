@@ -75,6 +75,9 @@ window.__ModuleLoader__.load({
       const [upCaption, setUpCaption] = React.useState('')
       const [upKeywords, setUpKeywords] = React.useState('')
       const [uploading, setUploading] = React.useState(false)
+      const [uploadOpen, setUploadOpen] = React.useState(false)
+      const [upFile, setUpFile] = React.useState(null)
+      const [upPreview, setUpPreview] = React.useState('')
       const fileRef = React.useRef(null)
 
       const load = async (query, tagf) => {
@@ -104,10 +107,14 @@ window.__ModuleLoader__.load({
           setNotice('仅支持 jpg/png/gif/webp')
           return
         }
-        if (!upTag.trim()) {
-          setNotice('先填新图分类(tag)')
-          return
-        }
+        setUpFile(file)
+        setUpPreview(URL.createObjectURL(file))
+      }
+
+      const onConfirmUpload = async () => {
+        const file = upFile
+        if (!file) { setNotice('先选择图片文件'); return }
+        if (!upTag.trim()) { setNotice('先填新图分类(tag)'); return }
         setUploading(true)
         const reader = new FileReader()
         reader.onload = async () => {
@@ -122,7 +129,15 @@ window.__ModuleLoader__.load({
               dataBase64: data,
             })
             setNotice(res && res.ok && res.meme ? '已上传: ' + res.meme.path : '上传失败: ' + (res && res.error || ''))
-            await load(q, tagFilter)
+            if (res && res.ok) {
+              setUploadOpen(false)
+              setUpFile(null)
+              setUpPreview('')
+              setUpTag('')
+              setUpCaption('')
+              setUpKeywords('')
+              await load(q, tagFilter)
+            }
           } catch (error) {
             setNotice('上传失败: ' + (error && error.message ? error.message : String(error)))
           }
@@ -176,27 +191,7 @@ window.__ModuleLoader__.load({
         h('option', { key: '', value: '' }, '全部分类'),
         tags.map((t) => h('option', { key: t, value: t }, t)),
       ])
-      const uploadInput = h('input', {
-        type: 'text',
-        placeholder: '新图分类(如 happy)',
-        value: upTag,
-        onChange: (e) => setUpTag(e.target.value),
-        style: { width: 110 },
-      })
-      const captionInput = h('input', {
-        type: 'text',
-        placeholder: '描述(如:无语)',
-        value: upCaption,
-        onChange: (e) => setUpCaption(e.target.value),
-        style: { width: 120 },
-      })
-      const keywordsInput = h('input', {
-        type: 'text',
-        placeholder: '关键词(空格分隔)',
-        value: upKeywords,
-        onChange: (e) => setUpKeywords(e.target.value),
-        style: { width: 140 },
-      })
+
       const fileInput = h('input', {
         ref: fileRef,
         type: 'file',
@@ -220,11 +215,8 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'meme-panel' },
         h('div', { className: 'section-title' }, '上传新表情包'),
         h('div', { className: 'row' },
-          uploadInput,
-          captionInput,
-          keywordsInput,
-          h('button', { className: 'btn-primary', onClick: () => fileRef.current && fileRef.current.click(), disabled: uploading }, uploading ? '上传中…' : '上传表情包'),
-          fileInput,
+          h('button', { className: 'btn-primary', onClick: () => setUploadOpen(true) }, '上传表情包'),
+          h('span', { className: 'total' }, '点击按钮在弹窗里选图并填写分类/描述'),
         ),
         h('div', { className: 'section-title' }, '图库 (' + total + ' 张)'),
         h('div', { className: 'row' },
@@ -260,6 +252,38 @@ window.__ModuleLoader__.load({
             ),
           ),
         ) : null,
+        // 上传弹窗
+        uploadOpen ? h('div', { className: 'meme-modal-mask', onClick: () => setUploadOpen(false) },
+          h('div', { className: 'meme-modal', onClick: (e) => e.stopPropagation() },
+            h('h3', null, '上传表情包'),
+            upFile
+              ? h('img', { src: upPreview, alt: upFile.name })
+              : h('div', { className: 'empty', style: { padding: '24px', border: '1px dashed var(--dsw-alias-border-l1)', borderRadius: 8 } },
+                  h('button', { onClick: () => fileRef.current && fileRef.current.click() }, '选择图片'),
+                ),
+            h('div', { className: 'field' },
+              h('label', null, upFile ? '已选: ' + upFile.name + ' (点击更换)' : '文件'),
+              h('input', { type: 'text', placeholder: upFile ? '' : '先选图片', value: '', readOnly: true, style: { display: 'none' } }),
+            ),
+            h('div', { className: 'field' },
+              h('label', null, '分类(必填)'),
+              h('input', { type: 'text', value: upTag, placeholder: '如 angry/happy/meme', onChange: (e) => setUpTag(e.target.value) }),
+            ),
+            h('div', { className: 'field' },
+              h('label', null, '描述'),
+              h('textarea', { value: upCaption, placeholder: '如:无语', rows: 2, onChange: (e) => setUpCaption(e.target.value) }),
+            ),
+            h('div', { className: 'field' },
+              h('label', null, '关键词(空格分隔)'),
+              h('input', { type: 'text', value: upKeywords, placeholder: '搜索用', onChange: (e) => setUpKeywords(e.target.value) }),
+            ),
+            h('div', { className: 'modal-acts' },
+              h('button', { onClick: () => setUploadOpen(false) }, '取消'),
+              h('button', { className: 'btn-primary', onClick: onConfirmUpload, disabled: uploading }, uploading ? '上传中…' : '上传'),
+            ),
+          ),
+        ) : null,
+        fileInput,
       )
     }
 

@@ -154,6 +154,20 @@ export function apply(ctx, config) {
     return
   }
 
+  // ---- 陪伴模式:系统提示注入,模型根据对话情绪主动斗图 ----
+  ctx.on('system-prompt/assemble', async (_assembly, _context, next) => {
+    const assembled = await next()
+    assembled.sections.push({
+      name: 'dsh-expression:companion',
+      text: '【陪伴模式 · 斗图】情绪到位就主动斗图:\n' +
+        '- 用户开心/无奈/生气/emo/卖萌/吐槽时,主动用 send_meme 搜一张贴题的表情包发出去,别冷场;\n' +
+        '- 时机:情绪到点就发;对方说正事/干活时克制,别硬凑;\n' +
+        '- 发完保持简短,让图自己说话,不啰嗦不复述;\n' +
+        '- 搜不到贴题的图就回文字,列分类让用户换词,绝不硬发。',
+    })
+    return assembled
+  })
+
   // ---- Web 通道:图片 HTTP 路由(白名单,只放行索引内路径) ----
   // 容错:同一进程内路由可能已被动态版插件注册(全局共享),冲突则复用。
   // urlPrefix 用绝对 URL:前端 markdown 渲染器不显示相对路径图片。
@@ -251,9 +265,11 @@ export function apply(ctx, config) {
     // ---- AI 自动学表情包:模型给图片 URL,下载收录进图库 ----
     ctx.tools.register(defineTool({
       name: 'learn_meme',
-      description: '把一张图片收录进表情包图库(自动学图)。用户上传了图片附件、或给出一张图片 URL、或明确要求收藏某张图时使用;' +
-        '插件会自动识别图片内容(分类/描述/关键词)后存入图库,之后 send_meme 就能搜到并发送。' +
-        '通常只需传 attachmentId(对话里上传的图片)或 imageUrl 即可(自动识别);tag/caption/keywords 可选,手动指定时优先用指定值。',
+      description: '把一张图片收录进表情包图库(自动学图)。' +
+        '仅当用户明确要求收藏/收录/保存这张图时使用(如「收藏这个表情」「收进图库」)。' +
+        '用户发表情/发图是斗图,不是收藏请求——不要自动收录,正常回应即可。' +
+        '插件会自动识别图片内容(分类/描述/关键词)后存入图库;tag/caption/keywords 可选,手动指定优先。' +
+        '支持对话附件 attachmentId 或 imageUrl(图库内 /dsh-memes/... 或任意 http(s) 链接)。',
       parameters: {
         attachmentId: { type: 'string', description: '对话中上传的图片附件 id(用户上传图片时给出,如 sha256:...)' },
         imageUrl: { type: 'string', description: '图片的可下载 URL(/dsh-memes/... 或 http(s)),与 attachmentId 二选一' },

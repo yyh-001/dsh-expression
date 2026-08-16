@@ -18,6 +18,10 @@ window.__ModuleLoader__.load({
       '.meme-panel{display:flex;flex-direction:column;gap:14px;padding:4px 0;font-size:13px;color:var(--dsw-alias-label-primary)}',
       '.meme-panel .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
       '.meme-panel .section-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);text-transform:uppercase;letter-spacing:.04em;margin:2px 0 -4px}',
+      '.meme-panel .switch{position:relative;width:36px;height:20px;border-radius:999px;background:var(--dsw-alias-border-l1);cursor:pointer;transition:background .15s ease;flex:none;display:inline-block}',
+      '.meme-panel .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .15s ease}',
+      '.meme-panel .switch.on{background:var(--dsw-alias-brand-primary)}',
+      '.meme-panel .switch.on::after{transform:translateX(16px)}',
       '.meme-panel input[type=text],.meme-panel select,.meme-panel textarea{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:6px 10px;font-size:13px;outline:none;transition:border-color .12s ease}',
       '.meme-panel input[type=text]:focus,.meme-panel select:focus,.meme-panel textarea:focus{border-color:var(--dsw-alias-brand-primary)}',
       '.meme-panel textarea{resize:vertical;font-family:inherit}',
@@ -86,6 +90,7 @@ window.__ModuleLoader__.load({
       const [upKeywords, setUpKeywords] = React.useState('')
       const [uploading, setUploading] = React.useState(false)
       const [uploadOpen, setUploadOpen] = React.useState(false)
+
       const [upNewTag, setUpNewTag] = React.useState('')
       const [upFile, setUpFile] = React.useState(null)
       const [upData64, setUpData64] = React.useState('')
@@ -386,7 +391,13 @@ window.__ModuleLoader__.load({
             }
             store.toggle()
           },
-        }, '😊')
+        }, React.createElement('svg', { viewBox: '0 0 24 24', width: 20, height: 20, style: { display: 'block' } },
+          // 透明底黑线笑脸:线条轮廓 + 弯眼 + 微笑
+          React.createElement('circle', { cx: 12, cy: 12, r: 10, fill: 'none', stroke: '#333', strokeWidth: 1.8 }),
+          React.createElement('path', { d: 'M7.8 10.2 Q8.8 8.6 9.8 10.2', stroke: '#333', strokeWidth: 1.8, fill: 'none', strokeLinecap: 'round' }),
+          React.createElement('path', { d: 'M14.2 10.2 Q15.2 8.6 16.2 10.2', stroke: '#333', strokeWidth: 1.8, fill: 'none', strokeLinecap: 'round' }),
+          React.createElement('path', { d: 'M7.2 13.8 Q12 18.6 16.8 13.8', stroke: '#333', strokeWidth: 2, fill: 'none', strokeLinecap: 'round' }),
+        ))
       }
     }
 
@@ -432,44 +443,15 @@ window.__ModuleLoader__.load({
       // 不附带任何 caption/描述文字,也不触发识图——就安静发图。
       const send = async (m) => {
         if (!m || !m.url) return
-        // m.url 是相对路径(/dsh-memes/...),绝对化成当前页面的 origin:
-        // 服务端不知道用户从 localhost 还是局域网 IP 访问,硬编码 127.0.0.1 会
-        // 跨源且无 CORS → fetch 必失败(历史教训:点击发图退回一串 markdown 字符串)。
+        // 纯文本消息:[表情: 描述](绝对url) —— 模型收到文字(兼容纯文本模型,
+        // 不触发 dsh 图片准入检查),前端 MutationObserver 把这段文本渲染成图片。
         const absUrl = (u) => { try { return new URL(u, window.location.origin).href } catch (e) { return u } }
-        const md = '![' + (m.tag || 'meme') + '](' + absUrl(m.url) + ')'
         const setText = (text) => { try { if (actions && actions.setDraft) actions.setDraft(text) } catch (e) {} }
-
-        // 走附件管线发真图:fetch URL → File → createDraftImages → addImages → submit
-        try {
-          const conv = (typeof props.getConversation === 'function' && props.getConversation()) || null
-          const doAdd = actions && typeof actions.addImages === 'function'
-          if (conv && doAdd && typeof conv.createDraftImages === 'function') {
-            const blob = await fetch(absUrl(m.url)).then((r) => r.blob())
-            const name = (m.file_name || String(m.path || '').split('/').pop() || 'meme.jpg')
-            let file
-            try { file = new File([blob], name, { type: blob.type || 'image/jpeg' }) }
-            catch (e) { file = null }
-            if (file) {
-              let imgs
-              try { imgs = conv.createDraftImages([file]) } catch (e) { imgs = null }
-              if (imgs && imgs.length && imgs[0].id && actions.addImages([imgs[0].id])) {
-                // 保留用户已打的文本(不附加描述)。
-                const cur = store.getBase() || ''
-                setText(cur || '')
-                try { if (actions.submit) actions.submit() } catch (e) {}
-                store.setBase('')
-                store.set(false)
-                return
-              }
-            }
-          }
-        } catch (e) {}
-        // 兜底:文字 markdown
+        const desc = (m.caption || m.keywords || m.tag || '表情包').slice(0, 100)
+        const text = '[表情: ' + desc + '](' + absUrl(m.url) + ')'
         const cur = store.getBase() || ''
-        setText(cur ? (cur.trim() ? cur + '\n' + md : md) : md)
-        try {
-          if (actions && actions.submit) actions.submit()
-        } catch (e) {}
+        setText(cur ? (cur.trim() ? cur + '\n' + text : text) : text)
+        try { if (actions && actions.submit) actions.submit() } catch (e) {}
         store.setBase('')
         store.set(false)
       }
@@ -513,6 +495,61 @@ window.__ModuleLoader__.load({
       pickerStyle.textContent = memePickerCSS
       document.head.appendChild(pickerStyle)
       ctx.effect(() => () => { pickerStyle.remove() }, 'dsh-expression-entry: meme-picker styles')
+
+      // 表情文本渲染:[表情: 描述](url) 文本消息 → 渲染成图片。
+      // 纯文本模式发送的是文本消息(模型读文字),这里在前端把文本装饰成表情图片。
+      const MEME_TEXT_RE = /\[表情:[^\]]*\]\((https?:\/\/[^\s)]+)\)/g
+      const decorateMemeText = () => {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode(node) {
+            const parent = node.parentElement
+            if (!parent || parent.closest('input,textarea,[contenteditable="true"]')) return NodeFilter.FILTER_REJECT
+            if (parent.dataset && parent.dataset.memeDecorated) return NodeFilter.FILTER_REJECT
+            return MEME_TEXT_RE.test(node.nodeValue || '') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+          },
+        })
+        const nodes = []
+        let n
+        while ((n = walker.nextNode())) nodes.push(n)
+        for (const node of nodes) {
+          const parent = node.parentElement
+          if (!parent || parent.dataset.memeDecorated) continue
+          parent.dataset.memeDecorated = '1'
+          const frag = document.createDocumentFragment()
+          const imgs = []
+          let last = 0
+          const text = node.nodeValue || ''
+          MEME_TEXT_RE.lastIndex = 0
+          let m
+          while ((m = MEME_TEXT_RE.exec(text))) {
+            if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)))
+            const img = document.createElement('img')
+            img.src = m[1]
+            img.alt = m[0].slice(0, 60)
+            img.title = m[0].slice(0, 60)
+            img.style.cssText = 'max-width:180px;max-height:180px;border-radius:10px;display:inline-block;vertical-align:middle;margin:2px 0'
+            frag.appendChild(img)
+            imgs.push(img)
+            last = m.index + m[0].length
+          }
+          if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)))
+          parent.replaceChild(frag, node)
+          // 图片移到消息行顶层(与图片消息一致,不带气泡);气泡链上所有空容器隐藏
+          const row = parent.closest('[data-time-hover-root]')
+          if (row && imgs.length > 0) {
+            for (const img of imgs) row.insertBefore(img, row.firstChild)
+            let el = parent
+            while (el && el !== row) {
+              if (!el.textContent.trim()) el.style.display = 'none'
+              el = el.parentElement
+            }
+          }
+        }
+      }
+      const observer = new MutationObserver(() => { decorateMemeText() })
+      observer.observe(document.body, { childList: true, subtree: true })
+      decorateMemeText()
+      ctx.effect(() => () => { observer.disconnect() }, 'dsh-expression-entry: meme text observer')
 
       const slots = ctx.get('slots')
       if (slots === undefined) return

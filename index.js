@@ -110,6 +110,7 @@ export function apply(ctx, config) {
   // ---- 管理 API + 自包含管理面板(HTTP,重启不丢,任何会话可访问) ----
   if (webServer) {
     const adminDb = new DatabaseSync(join(memes.root, 'index.db')) // 可写连接
+
     const validTagRe = /^[a-z0-9_-]+$/
     const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-expression",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "DeepSeek Harness 表情包插件:内置默认图库(官方-001,92 张),bigram Dice 语义检索,send_meme 发图(Web/QQ),设置页管理面板。",
   "repository": {
     "type": "git",

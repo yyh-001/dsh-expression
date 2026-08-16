@@ -16,15 +16,14 @@
 
 ---
 
-聊天 Agent 斗图最容易翻车的三件事：
+**dsh-expression** 是 DeepSeek Harness 的表情包插件——找得到、发得出、学得会：
 
-- 手写假路径  
-- 乱发不贴题的图  
-- 搜不到就硬发  
-
-**dsh-expression** 是 DeepSeek Harness 的表情包插件：语义检索后只发**真实存在的文件**，还会**自动学图**——用户发来的表情直接收录进图库。
-
-发送走 [`dsh-companion`](https://github.com/yyh-001/dsh-companion) 的 QQ 通道（`companionQq` 服务）；没有 QQ 通道就只挂 Web 模式（`send_meme` 返回可展示的图片 URL）。
+- **纯文本模型也能斗图**：界面显示表情图片，模型收到的是描述文字，无需图片输入能力
+- **AI 自动学图**：对话里收到表情，`learn_meme` 自动识别内容（分类/描述/关键词）并入库，越聊越有货
+- **情绪主动发图**：模型根据对话情绪主动甩一张贴题的表情包，陪伴式斗图
+- **一键发图**：输入框 😊 悬浮面板选图即发，不用让模型代劳
+- **语义搜图**：口语 query → bigram Dice 相似度排序，搜不到绝不硬发
+- **零第三方依赖**：仅 node:sqlite，装完即用
 
 交流 / 反馈：**QQ 群 [993579665](https://qm.qq.com/q/7AD2g70HqS)**（[点击加入](https://qm.qq.com/q/7AD2g70HqS)）
 
@@ -32,7 +31,7 @@
 
 ## 安装
 
-已发布到 **npm**（`dsh-expression@0.1.11`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
+已发布到 **npm**（`dsh-expression@0.1.12`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
 
 ```bash
 dsh plugin --profile web add dsh-expression
@@ -138,7 +137,7 @@ learn_meme imageUrl="…"            # 收录任意图片 URL
 | 组件 | 说明 |
 |------|------|
 | **dsh-expression** | 本插件：`MemesStore`（检索）+ `send_meme`（发送）+ `learn_meme`（学图）+ 管理 API |
-| **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + QQ 通道；提供 `companionQq` 服务供发图 |
+| **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + 消息通道；提供发图服务 |
 | **图库** | 内置默认图库 `memes/official-001/`（可 `memeRoot` 覆盖），源自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) |
 
 ```text
@@ -157,7 +156,6 @@ dsh-expression/
 ## 已知限制
 
 - 图片/媒体入站未实现（`send_image` 未移植）；
-- 发送目标是 QQ 通道的"最近聊天"（与 dsh-companion 的单目标 MVP 一致）；
 - `learn_meme` 自动识图依赖当前默认模型支持图片输入（不支持时会提示）；
 - 检索算法与 selfloom 原版一致（bigram Dice），部分口语词的匹配质量取决于图库 caption。
 

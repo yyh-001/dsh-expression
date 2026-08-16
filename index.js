@@ -132,7 +132,7 @@ export function apply(ctx, config) {
           const all = memes.list().memes.length
           json(res, {
             ok: true, total: all, tags,
-            memes: rows.map((m) => ({ ...m, url: urlPrefix ? urlPrefix + '/' + m.path : null })),
+            memes: rows.map((m) => ({ ...m, url: ROUTE + '/' + m.path })),
           })
           return
         }
@@ -159,7 +159,7 @@ export function apply(ctx, config) {
             writeFileSync(join(memes.root, rel), Buffer.from(data, 'base64'))
             adminDb.prepare('INSERT INTO memes (path, tag, file_name, caption, keywords, mtime, captioned_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
               .run(rel, tag, name, '', '', Date.now(), Date.now())
-            json(res, { ok: true, meme: { path: rel, tag, file_name: name, caption: '', keywords: '', url: urlPrefix ? urlPrefix + '/' + rel : null } })
+            json(res, { ok: true, meme: { path: rel, tag, file_name: name, caption: '', keywords: '', url: ROUTE + '/' + rel } })
           } else if (op === 'update') {
             const path = String(body.path || '')
             const row = memes.list().memes.find((m) => m.path === path)

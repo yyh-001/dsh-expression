@@ -311,7 +311,11 @@ window.__ModuleLoader__.load({
       // 不附带任何 caption/描述文字,也不触发识图——就安静发图。
       const send = async (m) => {
         if (!m || !m.url) return
-        const md = '![' + (m.tag || 'meme') + '](' + m.url + ')'
+        // m.url 是相对路径(/dsh-memes/...),绝对化成当前页面的 origin:
+        // 服务端不知道用户从 localhost 还是局域网 IP 访问,硬编码 127.0.0.1 会
+        // 跨源且无 CORS → fetch 必失败(历史教训:点击发图退回一串 markdown 字符串)。
+        const absUrl = (u) => { try { return new URL(u, window.location.origin).href } catch (e) { return u } }
+        const md = '![' + (m.tag || 'meme') + '](' + absUrl(m.url) + ')'
         const setText = (text) => { try { if (actions && actions.setDraft) actions.setDraft(text) } catch (e) {} }
 
         // 走附件管线发真图:fetch URL → File → createDraftImages → addImages → submit
@@ -319,7 +323,7 @@ window.__ModuleLoader__.load({
           const conv = (typeof props.getConversation === 'function' && props.getConversation()) || null
           const doAdd = actions && typeof actions.addImages === 'function'
           if (conv && doAdd && typeof conv.createDraftImages === 'function') {
-            const blob = await fetch(m.url).then((r) => r.blob())
+            const blob = await fetch(absUrl(m.url)).then((r) => r.blob())
             const name = (m.file_name || String(m.path || '').split('/').pop() || 'meme.jpg')
             let file
             try { file = new File([blob], name, { type: blob.type || 'image/jpeg' }) }

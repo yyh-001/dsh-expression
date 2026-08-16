@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/hero.jpg" alt="dsh-expression — 找得到、发得出" width="100%" />
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-expression/main/docs/hero.jpg" alt="dsh-expression — 找得到、发得出" width="100%" />
 </p>
 
 <p align="center">
@@ -63,6 +63,10 @@ pnpm add file:/path/to/dsh-expression
 
 输入框左侧点 **😊**（微信同款笑脸）直接选图一键发出，无需让模型代劳。
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-expression/main/docs/chat-example.png" alt="模型根据情绪主动发表情包" width="80%" />
+</p>
+
 ## 工具
 
 | 工具 | 作用 |
@@ -89,7 +93,15 @@ pnpm add file:/path/to/dsh-expression
 - **分类中文显示**：下拉与卡片显示「生气 (angry)」式中文
 - 分类筛选即时生效
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-expression/main/docs/settings-panel.png" alt="设置页表情包管理面板" width="80%" />
+</p>
+
 输入框 😊 一键发表情包：点开面板 → 搜索 / 浏览缩略图 → 点一张直接发出。
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-expression/main/docs/quick-picker.png" alt="输入框一键发表情包" width="80%" />
+</p>
 
 ## 它做什么
 

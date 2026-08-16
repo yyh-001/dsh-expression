@@ -111,6 +111,52 @@ export function apply(ctx, config) {
     const adminDb = new DatabaseSync(join(memes.root, 'index.db')) // 可写连接
     const validTagRe = /^[a-z0-9_-]+$/
     const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+
+    // ---- AI 自动学表情包:模型给图片 URL,下载收录进图库 ----
+    ctx.tools.register(defineTool({
+      name: 'learn_meme',
+      description: '把一张图片收录进表情包图库(自动学图)。用户给出一张图片 URL、或明确要求收藏某张图时使用;' +
+        '下载图片 → 存入图库(按分类)→ 之后 send_meme 就能搜到并发送。' +
+        'tag 传分类(angry/happy/sleep/…,小写字母/数字/-/_),caption 传一句话描述(如「无语」),keywords 传搜索关键词(空格分隔)。',
+      parameters: {
+        imageUrl: { type: 'string', description: '图片的可下载 URL(http/https)' },
+        tag: { type: 'string', description: '分类,如 angry/happy/meme' },
+        caption: { type: 'string', description: '一句话描述,如「无语」(可选)' },
+        keywords: { type: 'string', description: '搜索关键词,空格分隔(可选)' },
+      },
+      output: {
+        schema: { type: 'json' },
+        render: (_args, value) => [{ type: 'text', text: value.message }],
+      },
+      async execute(args) {
+        const imageUrl = typeof args.imageUrl === 'string' ? args.imageUrl.trim() : ''
+        const tag = typeof args.tag === 'string' ? args.tag.trim().toLowerCase() : ''
+        const caption = String(args.caption || '').trim().slice(0, 200)
+        const keywords = String(args.keywords || '').trim().slice(0, 200)
+        if (!/^https?:\/\//i.test(imageUrl)) return { ok: false, message: 'imageUrl 必须是 http(s) 链接' }
+        if (!tag || !validTagRe.test(tag)) return { ok: false, message: 'tag 只能是小写字母/数字/-/_(如 angry/happy)' }
+        try {
+          const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000), redirect: 'follow' })
+          if (!res.ok) return { ok: false, message: '下载失败: HTTP ' + res.status }
+          const ctype = String(res.headers.get('content-type') || '')
+          const m = /image\/(jpeg|png|gif|webp)/.exec(ctype)
+          const ext = m ? { jpeg: '.jpg', png: '.png', gif: '.gif', webp: '.webp' }[m[1]] : ''
+          if (!ext) return { ok: false, message: '该 URL 不是图片(jpg/png/gif/webp)' }
+          const buf = Buffer.from(await res.arrayBuffer())
+          if (buf.byteLength === 0 || buf.byteLength > 8 * 1024 * 1024) return { ok: false, message: '图片大小超限(≤8MB)' }
+          const name = Date.now() + '_' + Math.floor(Math.random() * 1000) + ext
+          const rel = 'memes/' + tag + '/' + name
+          mkdirSync(join(memes.root, 'memes', tag), { recursive: true })
+          writeFileSync(join(memes.root, rel), buf)
+          adminDb.prepare('INSERT INTO memes (path, tag, file_name, caption, keywords, mtime, captioned_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            .run(rel, tag, name, caption, keywords, Date.now(), Date.now())
+          return { ok: true, path: rel, tag, url: ROUTE + '/' + rel, message: '已收录: [' + tag + '] ' + (caption || name) + ' → ' + rel }
+        } catch (error) {
+          return { ok: false, message: '收录失败: ' + (error instanceof Error ? error.message : String(error)) }
+        }
+      },
+    }))
+
     const readBody = (req) => new Promise((resolve, reject) => {
       const chunks = []
       req.on('data', (c) => chunks.push(c))
@@ -149,6 +195,8 @@ export function apply(ctx, config) {
             const tag = String(body.tag || '').trim().toLowerCase()
             const fileName = String(body.fileName || '').trim()
             const data = String(body.dataBase64 || '')
+            const caption = String(body.caption || '').trim().slice(0, 200)
+            const keywords = String(body.keywords || '').trim().slice(0, 200)
             if (!tag || !validTagRe.test(tag)) throw new Error('tag 只能是小写字母/数字/-/_')
             const ext = fileName.includes('.') ? '.' + fileName.split('.').pop().toLowerCase() : ''
             if (!IMAGE_EXTS.includes(ext)) throw new Error('仅支持 jpg/png/gif/webp')
@@ -158,8 +206,8 @@ export function apply(ctx, config) {
             mkdirSync(join(memes.root, 'memes', tag), { recursive: true })
             writeFileSync(join(memes.root, rel), Buffer.from(data, 'base64'))
             adminDb.prepare('INSERT INTO memes (path, tag, file_name, caption, keywords, mtime, captioned_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-              .run(rel, tag, name, '', '', Date.now(), Date.now())
-            json(res, { ok: true, meme: { path: rel, tag, file_name: name, caption: '', keywords: '', url: ROUTE + '/' + rel } })
+              .run(rel, tag, name, caption, keywords, Date.now(), Date.now())
+            json(res, { ok: true, meme: { path: rel, tag, file_name: name, caption, keywords, url: ROUTE + '/' + rel } })
           } else if (op === 'update') {
             const path = String(body.path || '')
             const row = memes.list().memes.find((m) => m.path === path)

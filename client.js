@@ -61,6 +61,8 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [edit, setEdit] = React.useState(null)
       const [upTag, setUpTag] = React.useState('')
+      const [upCaption, setUpCaption] = React.useState('')
+      const [upKeywords, setUpKeywords] = React.useState('')
       const [uploading, setUploading] = React.useState(false)
       const fileRef = React.useRef(null)
 
@@ -100,7 +102,14 @@ window.__ModuleLoader__.load({
         reader.onload = async () => {
           const data = String(reader.result || '').split(',')[1] || ''
           try {
-            const res = await apiPost({ op: 'upload', tag: upTag.trim().toLowerCase(), fileName: file.name, dataBase64: data })
+            const res = await apiPost({
+              op: 'upload',
+              tag: upTag.trim().toLowerCase(),
+              caption: String(upCaption || '').trim(),
+              keywords: String(upKeywords || '').trim(),
+              fileName: file.name,
+              dataBase64: data,
+            })
             setNotice(res && res.ok && res.meme ? '已上传: ' + res.meme.path : '上传失败: ' + (res && res.error || ''))
             await load(q, tagFilter)
           } catch (error) {
@@ -151,7 +160,7 @@ window.__ModuleLoader__.load({
       })
       const tagSelect = h('select', {
         value: tagFilter,
-        onChange: (e) => setTagFilter(e.target.value),
+        onChange: (e) => { setTagFilter(e.target.value); load(q, e.target.value) },
       }, [
         h('option', { key: '', value: '' }, '全部分类'),
         tags.map((t) => h('option', { key: t, value: t }, t)),
@@ -161,6 +170,20 @@ window.__ModuleLoader__.load({
         placeholder: '新图分类(如 happy)',
         value: upTag,
         onChange: (e) => setUpTag(e.target.value),
+        style: { width: 110 },
+      })
+      const captionInput = h('input', {
+        type: 'text',
+        placeholder: '描述(如:无语)',
+        value: upCaption,
+        onChange: (e) => setUpCaption(e.target.value),
+        style: { width: 120 },
+      })
+      const keywordsInput = h('input', {
+        type: 'text',
+        placeholder: '关键词(空格分隔)',
+        value: upKeywords,
+        onChange: (e) => setUpKeywords(e.target.value),
         style: { width: 140 },
       })
       const fileInput = h('input', {
@@ -209,6 +232,8 @@ window.__ModuleLoader__.load({
         ),
         h('div', { className: 'row' },
           uploadInput,
+          captionInput,
+          keywordsInput,
           h('button', { onClick: () => fileRef.current && fileRef.current.click(), disabled: uploading }, uploading ? '上传中…' : '上传表情包'),
           fileInput,
         ),

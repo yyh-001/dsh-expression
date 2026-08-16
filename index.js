@@ -29,9 +29,23 @@ const MIME = {
 const ROUTE = '/dsh-memes'
 
 export function apply(ctx, config) {
+  // 图库目录设置存 ~/.dsh(稳定,不受包升级/图库变化影响):
+  // 优先级 用户设置(settings) > patch 配置(config.memeRoot) > 包内默认
+  const settingsFile = join(process.env.HOME || '.', '.dsh', 'dsh-expression.json')
+  const readSettings = () => {
+    try { return JSON.parse(readFileSync(settingsFile, 'utf8')) } catch (e) { return {} }
+  }
+  const writeSettings = (s) => {
+    try {
+      mkdirSync(join(process.env.HOME || '.', '.dsh'), { recursive: true })
+      writeFileSync(settingsFile, JSON.stringify(s, null, 2))
+    } catch (e) {}
+  }
+  const userMemeRoot = readSettings().memeRoot
+  const memeRoot = userMemeRoot || config?.memeRoot || defaultMemeRoot()
   let memes = null
   try {
-    memes = new MemesStore(config?.memeRoot || defaultMemeRoot())
+    memes = new MemesStore(memeRoot)
   } catch (error) {
     console.error('[dsh-expression] meme store unavailable:', error && error.message)
     return
@@ -109,7 +123,24 @@ export function apply(ctx, config) {
 
   // ---- 管理 API + 自包含管理面板(HTTP,重启不丢,任何会话可访问) ----
   if (webServer) {
-    const adminDb = new DatabaseSync(join(memes.root, 'index.db')) // 可写连接
+    let adminDb = new DatabaseSync(join(memes.root, 'index.db')) // 可写连接
+    // 运行时切换图库目录:校验 → 持久化设置 → 原子替换 memes/adminDb。
+    // 工具/路由/API 闭包引用变量,替换后立即指向新图库,无需重启。
+    const reloadMemeStore = (dir) => {
+      // 目录不存在则创建;没有 index.db 则初始化空图库(用户可传图/学图逐步填充)
+      mkdirSync(dir, { recursive: true })
+      const indexPath = join(dir, 'index.db')
+      if (!existsSync(indexPath)) {
+        const initDb = new DatabaseSync(indexPath)
+        initDb.exec('CREATE TABLE IF NOT EXISTS memes (path TEXT PRIMARY KEY, tag TEXT, file_name TEXT, caption TEXT, keywords TEXT, mtime REAL, captioned_at REAL)')
+        initDb.close()
+      }
+      const next = new MemesStore(dir)
+      const nextDb = new DatabaseSync(indexPath)
+      writeSettings({ memeRoot: dir })
+      memes = next
+      adminDb = nextDb
+    }
 
     const validTagRe = /^[a-z0-9_-]+$/
     const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
@@ -322,6 +353,13 @@ export function apply(ctx, config) {
             const n = adminDb.prepare('DELETE FROM memes WHERE tag = ?').run(tag).changes
             rmSync(join(memes.root, 'memes', tag), { recursive: true, force: true })
             json(res, { ok: true, deleted: n })
+          } else if (op === 'getMemeRoot') {
+            json(res, { ok: true, memeRoot: memes.root, configured: !!readSettings().memeRoot })
+          } else if (op === 'setMemeRoot') {
+            const dir = String(body.memeRoot || '').trim()
+            if (!dir) throw new Error('目录不能为空')
+            reloadMemeStore(dir)
+            json(res, { ok: true, memeRoot: memes.root, message: '已切换图库,立即生效' })
           } else {
             json(res, { ok: false, error: '未知操作: ' + op }, 400)
           }

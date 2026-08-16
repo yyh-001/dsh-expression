@@ -61,6 +61,9 @@ window.__ModuleLoader__.load({
     }
     const tagZh = (t) => TAG_ZH[t] || t
 
+    // 表情图标(用户提供的 PNG,base64 内嵌,避免插件静态资源路由不可用)
+    const MEME_ICON = 'data:image/png;base64,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'
+
     async function apiGet(params) {
       const qs = new URLSearchParams()
       if (params.tag) qs.set('tag', params.tag)
@@ -75,7 +78,8 @@ window.__ModuleLoader__.load({
       })).json()
     }
 
-    function MemePanel() {
+    function MemePanel(props) {
+      const ctx = props && props.ctx
       const h = React.createElement
       const [memes, setMemes] = React.useState([])
       const [tags, setTags] = React.useState([])
@@ -90,6 +94,50 @@ window.__ModuleLoader__.load({
       const [upKeywords, setUpKeywords] = React.useState('')
       const [uploading, setUploading] = React.useState(false)
       const [uploadOpen, setUploadOpen] = React.useState(false)
+      const [memeRoot, setMemeRoot] = React.useState('')
+      const [memeRootInput, setMemeRootInput] = React.useState('')
+      const [rootNotice, setRootNotice] = React.useState('')
+      const [browseOpen, setBrowseOpen] = React.useState(false)
+      const [browseList, setBrowseList] = React.useState(null)
+      const [browseErr, setBrowseErr] = React.useState('')
+      React.useEffect(() => {
+        apiPost({ op: 'getMemeRoot' }).then((res) => {
+          if (res && res.ok) { setMemeRoot(res.memeRoot || ''); setMemeRootInput(res.memeRoot || '') }
+        }).catch(() => {})
+      }, [])
+      const onSaveMemeRoot = async (dirArg) => {
+        const dir = String(dirArg !== undefined ? dirArg : memeRootInput || '').trim()
+        if (!dir) { setRootNotice('目录不能为空'); return }
+        try {
+          const res = await apiPost({ op: 'setMemeRoot', memeRoot: dir })
+          if (res && res.ok) {
+            setRootNotice('已切换图库,立即生效')
+            await load(q, tagFilter)  // 刷新列表为新图库内容
+          } else {
+            setRootNotice('保存失败: ' + (res && res.error || ''))
+          }
+        } catch (e) {
+          setRootNotice('保存失败')
+        }
+      }
+      const onPickDir = async () => {
+        setBrowseErr('')
+        try {
+          const workspaces = ctx.get('workspaces')
+          if (!workspaces || typeof workspaces.listDirectory !== 'function') return
+          // 默认从当前表情包目录开始浏览(而不是 home)
+          setBrowseList(await workspaces.listDirectory(String(memeRootInput || '').trim() || undefined))
+          setBrowseOpen(true)
+        } catch (e) {}
+      }
+      const browseTo = async (path) => {
+        setBrowseErr('')
+        try {
+          setBrowseList(await ctx.get('workspaces').listDirectory(path))
+        } catch (e) {
+          setBrowseErr('读取失败: ' + (e && e.message ? e.message : String(e)))
+        }
+      }
 
       const [upNewTag, setUpNewTag] = React.useState('')
       const [upFile, setUpFile] = React.useState(null)
@@ -252,7 +300,12 @@ window.__ModuleLoader__.load({
       ))
 
       return h('div', { className: 'meme-panel' },
-        h('div', { className: 'section-title' }, '上传新表情包'),
+        h('div', { className: 'section-title' }, '图库目录'),
+        h('div', { className: 'row', style: { width: '100%' } },
+          h('input', { type: 'text', value: memeRootInput, onChange: (e) => setMemeRootInput(e.target.value), placeholder: '表情包目录(含 index.db)', style: { flex: 1, minWidth: 160 } }),
+          h('button', { onClick: onPickDir }, '选择目录'),
+          h('button', { onClick: onSaveMemeRoot }, '保存'),
+        ),
         h('div', { className: 'row' },
           h('button', { className: 'btn-primary', onClick: () => setUploadOpen(true) }, '上传表情包'),
         ),
@@ -342,6 +395,40 @@ window.__ModuleLoader__.load({
           ),
         ) : null,
         fileInput,
+        // 目录浏览弹窗(WSL 无原生选择器,用 browse 能力前端浏览)
+        browseOpen && browseList ? h('div', { className: 'meme-modal-mask', onClick: () => setBrowseOpen(false) },
+          h('div', { className: 'meme-modal', style: { width: 420 }, onClick: (e) => e.stopPropagation() },
+            h('h3', null, '选择表情包目录'),
+            h('div', { className: 'total', style: { wordBreak: 'break-all' } }, browseList.path),
+            h('div', { className: 'row', style: { flexWrap: 'wrap', gap: 4 } },
+              h('button', {
+                onClick: () => {
+                  // 上一级 = 当前路径去掉最后一段(不依赖 breadcrumbs)
+                  const p = String(browseList.path || '')
+                  const parent = p.replace(/\/+[^\/]*\/?$/, '') || '/'
+                  if (parent !== p) browseTo(parent)
+                },
+                disabled: !String(browseList.path || '').includes('/'),
+                style: { padding: '3px 8px', fontSize: 12 },
+              }, '⬆ 上一级'),
+              (browseList.breadcrumbs || []).map((c, i) =>
+                h('button', { key: c.path, onClick: () => browseTo(c.path), style: { padding: '3px 8px', fontSize: 12 } },
+                  (i === 0 ? '🏠 ' : '') + c.name)),
+            ),
+            h('div', { style: { height: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 8, padding: 4 } },
+              (browseList.entries || []).length === 0
+                ? h('div', { className: 'empty' }, '(空目录)')
+                : (browseList.entries || []).map((e) =>
+                    h('button', { key: e.path, onClick: () => browseTo(e.path), style: { textAlign: 'left', padding: '5px 10px', fontSize: 13 } },
+                      '📁 ' + e.name)),
+            ),
+            browseErr ? h('div', { className: 'notice' }, browseErr) : null,
+            h('div', { className: 'modal-acts' },
+              h('button', { onClick: () => setBrowseOpen(false) }, '取消'),
+              h('button', { className: 'btn-primary', onClick: () => { setMemeRootInput(browseList.path); onSaveMemeRoot(browseList.path); setBrowseOpen(false) } }, '使用此目录'),
+            ),
+          ),
+        ) : null,
       )
     }
 
@@ -391,13 +478,7 @@ window.__ModuleLoader__.load({
             }
             store.toggle()
           },
-        }, React.createElement('svg', { viewBox: '0 0 24 24', width: 20, height: 20, style: { display: 'block' } },
-          // 透明底黑线笑脸:线条轮廓 + 弯眼 + 微笑
-          React.createElement('circle', { cx: 12, cy: 12, r: 10, fill: 'none', stroke: '#333', strokeWidth: 1.8 }),
-          React.createElement('path', { d: 'M7.8 10.2 Q8.8 8.6 9.8 10.2', stroke: '#333', strokeWidth: 1.8, fill: 'none', strokeLinecap: 'round' }),
-          React.createElement('path', { d: 'M14.2 10.2 Q15.2 8.6 16.2 10.2', stroke: '#333', strokeWidth: 1.8, fill: 'none', strokeLinecap: 'round' }),
-          React.createElement('path', { d: 'M7.2 13.8 Q12 18.6 16.8 13.8', stroke: '#333', strokeWidth: 2, fill: 'none', strokeLinecap: 'round' }),
-        ))
+        }, React.createElement('img', { src: MEME_ICON, alt: '表情包', style: { display: 'block', width: 20, height: 20 } }))
       }
     }
 
@@ -483,7 +564,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    const inject = ['slots']
+    const inject = ['slots', 'workspaces']
 
     function apply(ctx) {
       const styleEl = document.createElement('style')
@@ -546,16 +627,34 @@ window.__ModuleLoader__.load({
           }
         }
       }
-      const observer = new MutationObserver(() => { decorateMemeText() })
+      // 设置侧边栏「表情包」行的齿轮图标替换成笑脸(dsh navIcon 硬编码,不支持自定义)
+      const decorateNavIcon = () => {
+        const nav = document.querySelector('[role="dialog"] nav')
+        if (!nav) return
+        for (const btn of nav.querySelectorAll('button')) {
+          if (btn.dataset.memeNav) continue
+          if (!btn.textContent || !btn.textContent.includes('表情包')) continue
+          const icon = btn.firstElementChild
+          if (!icon || icon.tagName === 'IMG') { btn.dataset.memeNav = '1'; continue }
+          const img = document.createElement('img')
+          img.src = MEME_ICON
+          img.alt = '表情包'
+          img.style.cssText = 'width:16px;height:16px;flex:none'
+          icon.replaceWith(img)
+          btn.dataset.memeNav = '1'
+        }
+      }
+      const observer = new MutationObserver(() => { decorateMemeText(); decorateNavIcon() })
       observer.observe(document.body, { childList: true, subtree: true })
       decorateMemeText()
+      decorateNavIcon()
       ctx.effect(() => () => { observer.disconnect() }, 'dsh-expression-entry: meme text observer')
 
       const slots = ctx.get('slots')
       if (slots === undefined) return
       slots.inject('settings.section', () => slots.register(
-        { name: 'settings.section', id: 'memes', order: 25, label: '表情包' },
-        () => React.createElement(MemePanel),
+        { name: 'settings.section', id: 'memes', order: 25, label: '表情包', icon: MEME_ICON },
+        () => React.createElement(MemePanel, { ctx }),
       ))
 
       // 输入框快捷发图(QQ 式)。

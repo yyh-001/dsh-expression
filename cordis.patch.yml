@@ -1,8 +1,8 @@
 # dsh-expression bundle patch: host plugin (send_meme + /dsh-memes) and
 # client settings section. Activate with
 # `dsh plugin --profile web add file:/path/to/dsh-expression`.
+# 纯 insert(id/name)才能热挂载;带 config 会被 dshmarket 判定需重启,
+# 所以这里不配置 memeRoot——默认用包内置图库(memes/official-001)。
 - insert:
     - id: dsh-expression
       name: dsh-expression
-      config:
-        memeRoot: /home/yyh/.hermes/meme-packs/official-001

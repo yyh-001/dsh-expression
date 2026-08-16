@@ -50,16 +50,9 @@ pnpm add file:/path/to/dsh-expression
 
 ## 配置
 
-默认内置图库（`memes/official-001`），开箱即用。**推荐**把 `memeRoot` 指向包外目录——图库存包内会在升级插件时被重置（历史教训）：
+默认内置图库（`memes/official-001`），开箱即用，**无需任何配置**。
 
-```yaml
-- id: dsh-expression
-  name: dsh-expression
-  config:
-    memeRoot: /your/path/to/meme-pack   # 推荐包外目录,升级不丢数据
-```
-
-代价：带 `config` 的 bundle patch 升级后需重启一次（不能热挂载）。
+图库目录在**设置页「图库目录」**里随时切换（浏览选择或输入路径，保存即生效，无需重启）——选择空目录会自动初始化成新图库，选择目录不存在时自动创建。设置存在 `~/.dsh/dsh-expression.json`，升级插件不丢。
 
 ## 装完即用
 
@@ -89,6 +82,8 @@ pnpm add file:/path/to/dsh-expression
 
 设置页「表情包」面板（已美化）：
 
+- **图库目录**：浏览选择/输入路径，保存即生效（空目录自动初始化）
+- **导出/导入图库**：打包成 ZIP 分享给别人，导入别人的包一键切换
 - **上传弹窗**：选图预览 + 分类下拉（选择/新建/删除分类）+ 描述 + 关键词
 - **编辑弹窗**：同款分类下拉，改分类/描述/关键词
 - **分类中文显示**：下拉与卡片显示「生气 (angry)」式中文
@@ -106,6 +101,8 @@ pnpm add file:/path/to/dsh-expression
 | **输入框一键发图** | 会话输入框左侧 😊 按钮 → 悬浮面板选图 → 一点即发 |
 | **情绪主动发图** | 工具描述鼓励"情绪到了直接发"；发完不啰嗦、不复述图 |
 | **管理 API** | 上传 / 编辑 / 删除 / 删除分类，全部在设置页完成，数据持久 |
+| **图库目录切换** | 设置页浏览选择图库目录，保存即时生效，空目录自动初始化 |
+| **导出 / 导入** | 图库一键打包 ZIP 分享，导入别人的包自动切换（零依赖实现） |
 
 ## 日常命令（模型视角）
 
@@ -138,14 +135,14 @@ learn_meme imageUrl="…"            # 收录任意图片 URL
 |------|------|
 | **dsh-expression** | 本插件：`MemesStore`（检索）+ `send_meme`（发送）+ `learn_meme`（学图）+ 管理 API |
 | **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + 消息通道；提供发图服务 |
-| **图库** | 内置默认图库 `memes/official-001/`（可 `memeRoot` 覆盖），源自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) |
+| **图库** | 内置默认图库 `memes/official-001/`（设置页可切换目录/导入分享包），源自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) |
 
 ```text
 dsh-expression/
   index.js          插件入口：memeRoot 配置 + 管理 API + learn_meme/识图
   memes.js          MemesStore：SQLite 索引 + bigram Dice 检索 + 路径安全
   client.js         前端：设置页面板(上传/编辑/删除) + 😊 悬浮窗 + 表情文本渲染
-  cordis.patch.yml  bundle patch(带 memeRoot 配置)
+  cordis.patch.yml  bundle patch(纯 insert,热挂载免重启)
   memes/
     official-001/   内置默认图库（index.db + manifest.json + memes/<tag>/）
   package.json      name / inject / peer deps

@@ -14,11 +14,114 @@
  * 管理操作(上传/删除/改元数据)不移植——那是控制台的活,模型只需"选图发送"。
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, rmSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { MemesStore, defaultMemeRoot, registerSendMemeTool } from './memes.js'
+
+// ---- 极简 ZIP(store 无压缩)读写:零依赖导出/导入图库包 ----
+const CRC_TABLE = (() => {
+  const t = new Int32Array(256)
+  for (let n = 0; n < 256; n++) {
+    let c = n
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1)
+    t[n] = c
+  }
+  return t
+})()
+function crc32(buf) {
+  let c = -1
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8)
+  return (c ^ -1) >>> 0
+}
+
+/** 打包文件列表为 ZIP(store 无压缩):[{name, data}] → Buffer */
+function zipStore(files) {
+  const parts = []
+  const central = []
+  let offset = 0
+  for (const f of files) {
+    const nameBuf = Buffer.from(f.name, 'utf8')
+    const crc = crc32(f.data)
+    const lh = Buffer.alloc(30)
+    lh.writeUInt32LE(0x04034b50, 0)
+    lh.writeUInt16LE(20, 4)
+    lh.writeUInt16LE(0x0800, 6)          // UTF-8 文件名
+    lh.writeUInt16LE(0, 8)               // store
+    lh.writeUInt32LE(0, 10)
+    lh.writeUInt32LE(crc, 14)
+    lh.writeUInt32LE(f.data.length, 18)
+    lh.writeUInt32LE(f.data.length, 22)
+    lh.writeUInt16LE(nameBuf.length, 26)
+    lh.writeUInt16LE(0, 28)
+    parts.push(lh, nameBuf, f.data)
+    const ch = Buffer.alloc(46)
+    ch.writeUInt32LE(0x02014b50, 0)
+    ch.writeUInt16LE(20, 4)
+    ch.writeUInt16LE(20, 6)
+    ch.writeUInt16LE(0x0800, 8)
+    ch.writeUInt16LE(0, 10)
+    ch.writeUInt32LE(0, 12)
+    ch.writeUInt32LE(crc, 16)
+    ch.writeUInt32LE(f.data.length, 20)
+    ch.writeUInt32LE(f.data.length, 24)
+    ch.writeUInt16LE(nameBuf.length, 28)
+    ch.writeUInt16LE(0, 30)
+    ch.writeUInt16LE(0, 32)
+    ch.writeUInt16LE(0, 34)
+    ch.writeUInt16LE(0, 36)
+    ch.writeUInt32LE(0, 38)
+    ch.writeUInt32LE(offset, 42)
+    central.push(ch, nameBuf)
+    offset += lh.length + nameBuf.length + f.data.length
+  }
+  const cdSize = central.reduce((s, b) => s + b.length, 0)
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0)
+  eocd.writeUInt16LE(0, 4)
+  eocd.writeUInt16LE(0, 6)
+  eocd.writeUInt16LE(files.length, 8)
+  eocd.writeUInt16LE(files.length, 10)
+  eocd.writeUInt32LE(cdSize, 12)
+  eocd.writeUInt32LE(offset, 16)
+  eocd.writeUInt16LE(0, 20)
+  return Buffer.concat([...parts, ...central, eocd])
+}
+
+/** 解析 ZIP(仅 store/无压缩条目):Buffer → Map<name, Buffer> */
+function unzipStore(buf) {
+  const out = new Map()
+  // EOCD:从尾部找签名
+  let eocd = -1
+  for (let i = buf.length - 22; i >= 0; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break }
+  }
+  if (eocd < 0) throw new Error('不是有效的 ZIP 文件')
+  const count = buf.readUInt16LE(eocd + 10)
+  let pos = buf.readUInt32LE(eocd + 16)
+  for (let n = 0; n < count; n++) {
+    if (buf.readUInt32LE(pos) !== 0x02014b50) throw new Error('ZIP 中央目录损坏')
+    const method = buf.readUInt16LE(pos + 10)
+    const compSize = buf.readUInt32LE(pos + 20)
+    const nameLen = buf.readUInt16LE(pos + 28)
+    const extraLen = buf.readUInt16LE(pos + 30)
+    const commentLen = buf.readUInt16LE(pos + 32)
+    const localOffset = buf.readUInt32LE(pos + 42)
+    const name = buf.toString('utf8', pos + 46, pos + 46 + nameLen)
+    // local header
+    const lNameLen = buf.readUInt16LE(localOffset + 26)
+    const lExtraLen = buf.readUInt16LE(localOffset + 28)
+    const dataStart = localOffset + 30 + lNameLen + lExtraLen
+    const data = method === 0
+      ? Buffer.from(buf.subarray(dataStart, dataStart + compSize))
+      : null
+    if (data === null) throw new Error('ZIP 含压缩条目(仅支持未压缩): ' + name)
+    out.set(name, data)
+    pos += 46 + nameLen + extraLen + commentLen
+  }
+  return out
+}
 
 export const name = 'dsh-expression'
 export const inject = ['tools', 'webServer', 'agentDefaultModel', 'attachments']
@@ -353,6 +456,24 @@ export function apply(ctx, config) {
             const n = adminDb.prepare('DELETE FROM memes WHERE tag = ?').run(tag).changes
             rmSync(join(memes.root, 'memes', tag), { recursive: true, force: true })
             json(res, { ok: true, deleted: n })
+          } else if (op === 'importMemePack') {
+            const data = String(body.dataBase64 || '')
+            const name = String(body.name || 'meme-pack').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'meme-pack'
+            if (!data) throw new Error('缺少 ZIP 数据')
+            const entries = unzipStore(Buffer.from(data, 'base64'))
+            const indexPath = entries.get('index.db')
+            if (!indexPath) throw new Error('ZIP 里没有 index.db,不是有效的表情包包')
+            // 解包到 ~/.dsh/meme-packs/<name>(包外,持久)
+            const target = join(process.env.HOME || '.', '.dsh', 'meme-packs', name)
+            rmSync(target, { recursive: true, force: true })
+            mkdirSync(target, { recursive: true })
+            for (const [rel, bytes] of entries) {
+              const full = join(target, rel)
+              mkdirSync(dirname(full), { recursive: true })
+              writeFileSync(full, bytes)
+            }
+            reloadMemeStore(target)
+            json(res, { ok: true, memeRoot: target, total: memes.list().memes.length, message: '导入成功,已切换到新图库' })
           } else if (op === 'getMemeRoot') {
             json(res, { ok: true, memeRoot: memes.root, configured: !!readSettings().memeRoot })
           } else if (op === 'setMemeRoot') {
@@ -368,6 +489,42 @@ export function apply(ctx, config) {
         }
       },
     })
+    // 导出图库为 ZIP 包(分享用):遍历图库目录全部文件打包
+    webServer.register({
+      kind: 'exact',
+      path: '/dsh-memes-export',
+      handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405, { allow: 'GET' })
+          res.end()
+          return
+        }
+        try {
+          // 只导出索引内的文件(index.db + manifest.json + 索引图片),
+          // 不打包 .git/备份/缩略图等无关内容(历史教训:整目录遍历会带出 200MB 杂物)
+          const files = [{ name: 'index.db', data: readFileSync(join(memes.root, 'index.db')) }]
+          if (existsSync(join(memes.root, 'manifest.json'))) {
+            files.push({ name: 'manifest.json', data: readFileSync(join(memes.root, 'manifest.json')) })
+          }
+          for (const m of memes.list().memes) {
+            const full = join(memes.root, m.path)
+            if (existsSync(full)) files.push({ name: m.path, data: readFileSync(full) })
+          }
+          const zip = zipStore(files)
+          const stamp = new Date().toISOString().slice(0, 10)
+          res.writeHead(200, {
+            'Content-Type': 'application/zip',
+            'Content-Length': String(zip.byteLength),
+            'Content-Disposition': 'attachment; filename="dsh-meme-pack-' + stamp + '.zip"',
+          })
+          res.end(zip)
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' })
+          res.end('导出失败: ' + (error instanceof Error ? error.message : String(error)))
+        }
+      },
+    })
+
     // 自包含管理面板页面(无构建链、重启不丢)。
     webServer.register({
       kind: 'exact',

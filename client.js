@@ -144,6 +144,32 @@ window.__ModuleLoader__.load({
       const [upData64, setUpData64] = React.useState('')
       const [upPreview, setUpPreview] = React.useState('')
       const fileRef = React.useRef(null)
+      const importFileRef = React.useRef(null)
+      const onImportPack = (ev) => {
+        const file = ev.target.files && ev.target.files[0]
+        ev.target.value = ''
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = async () => {
+          const b64 = String(reader.result || '').split(',')[1] || ''
+          const name = String(file.name || '').replace(/\.zip$/i, '')
+          setRootNotice('导入中…')
+          try {
+            const res = await apiPost({ op: 'importMemePack', dataBase64: b64, name })
+            if (res && res.ok) {
+              setMemeRootInput(res.memeRoot || '')
+              setRootNotice(res.message || '导入成功')
+              await load(q, tagFilter)
+            } else {
+              setRootNotice('导入失败: ' + (res && res.error || ''))
+            }
+          } catch (e) {
+            setRootNotice('导入失败')
+          }
+        }
+        reader.onerror = () => setRootNotice('读取文件失败')
+        reader.readAsDataURL(file)
+      }
 
       const load = async (query, tagf) => {
         setBusy(true)
@@ -305,6 +331,11 @@ window.__ModuleLoader__.load({
           h('input', { type: 'text', value: memeRootInput, onChange: (e) => setMemeRootInput(e.target.value), placeholder: '表情包目录(含 index.db)', style: { flex: 1, minWidth: 160 } }),
           h('button', { onClick: onPickDir }, '选择目录'),
           h('button', { onClick: onSaveMemeRoot }, '保存'),
+        ),
+        h('div', { className: 'row' },
+          h('button', { onClick: () => { window.location.href = '/dsh-memes-export' } }, '导出图库'),
+          h('button', { onClick: () => importFileRef.current && importFileRef.current.click() }, '导入图库'),
+          h('input', { ref: importFileRef, type: 'file', accept: '.zip,application/zip', style: { display: 'none' }, onChange: onImportPack }),
         ),
         h('div', { className: 'row' },
           h('button', { className: 'btn-primary', onClick: () => setUploadOpen(true) }, '上传表情包'),

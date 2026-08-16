@@ -1,11 +1,10 @@
-# dsh-expression bundle patch: host plugin (send_meme + /dsh-memes) and
-# client settings section. Activate with
+# dsh-expression bundle patch: host plugin (send_meme + learn_meme + /dsh-memes)
+# and client settings section. Activate with
 # `dsh plugin --profile web add file:/path/to/dsh-expression`.
-# memeRoot 指到包外图库:升级插件不会重置用户数据(历史教训:图库存包内,
-# 每次 pnpm 升级都恢复成默认 92 张,用户删的图/传的图全丢)。
-# 代价:bundle patch 带 config,升级后需重启一次(不能热挂载)。
+# 纯 insert(id/name)可热挂载免重启。图库目录不在这里写死——
+# 用户在设置页「图库目录」选择并保存到 ~/.dsh/dsh-expression.json,
+# 默认用包内置图库(memes/official-001)。历史教训:patch 硬编码某台机器的
+# memeRoot,其他用户安装后指向不存在的目录,插件直接起不来。
 - insert:
     - id: dsh-expression
       name: dsh-expression
-      config:
-        memeRoot: /home/yyh/.hermes/meme-packs/official-001

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>表情包插件 dsh-expression</strong> — 找得到、发得出
+  <strong>表情包插件 dsh-expression</strong> — 找得到、发得出、学得会
 </p>
 
 <p align="center">
@@ -11,7 +11,6 @@
   <a href="https://github.com/topics/dsh-plugin"><img src="https://img.shields.io/badge/topic-dsh--plugin-amber?style=flat-square" alt="dsh-plugin" /></a>
   <img src="https://img.shields.io/badge/Host-DeepSeek%20Harness-informational?style=flat-square" alt="DeepSeek Harness" />
   <img src="https://img.shields.io/badge/Deps-node%3Asqlite%20only-blue?style=flat-square" alt="zero third-party deps" />
-  <img src="https://img.shields.io/badge/Data-selfloom%20compatible-lightgrey?style=flat-square" alt="selfloom compatible" />
   <a href="https://awesome-dsh-plugin.com"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="awesome · DSH plugin" /></a>
 </p>
 
@@ -23,12 +22,9 @@
 - 乱发不贴题的图  
 - 搜不到就硬发  
 
-**dsh-expression** 是 DeepSeek Harness 的表情包插件：直接读你现成的表情包库，语义检索后只发**真实存在的文件**。  
-数据来自 [selfloom](https://github.com/yyh-001/selfloom)（单用户陪伴 agent）的表情包库——**零迁移、开箱即搜**。发送走 [`dsh-companion`](https://github.com/yyh-001/dsh-companion) 的 QQ 通道（`companionQq` 服务）；没有 QQ 通道就不挂工具，绝不给模型一个发不出去的空工具。
+**dsh-expression** 是 DeepSeek Harness 的表情包插件：语义检索后只发**真实存在的文件**，还会**自动学图**——用户发来的表情直接收录进图库。
 
-**配合陪伴插件 dsh-companion 的效果**：不需要任何插件 API，模型会结合会话上下文主动判断情绪、恰到好处地发一张贴题的表情包——情绪到了直接发，实现「陪伴式斗图」。
-
-想换一套聊天搭子人设？另装 **[dsh-companion](https://github.com/yyh-001/dsh-companion)**（人设 + Hermes 记忆 + QQ 通道）——两者独立、可选搭配，本仓不含人设。
+发送走 [`dsh-companion`](https://github.com/yyh-001/dsh-companion) 的 QQ 通道（`companionQq` 服务）；没有 QQ 通道就只挂 Web 模式（`send_meme` 返回可展示的图片 URL）。
 
 交流 / 反馈：**QQ 群 [993579665](https://qm.qq.com/q/7AD2g70HqS)**（[点击加入](https://qm.qq.com/q/7AD2g70HqS)）
 
@@ -36,7 +32,7 @@
 
 ## 安装
 
-已发布到 **npm**（`dsh-expression@0.1.0`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
+已发布到 **npm**（`dsh-expression@0.1.11`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
 
 ```bash
 dsh plugin --profile web add dsh-expression
@@ -51,18 +47,20 @@ pnpm add github:yyh-001/dsh-expression   # 或
 pnpm add file:/path/to/dsh-expression
 ```
 
+> 注意：pnpm 有「新包安全期」（默认 24h），刚发布的版本会被静默回落到旧版；急用可在 `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 里加上版本号。
+
 ## 配置
 
-默认直接内置图库（`memes/official-001`），开箱即用，绝大多数情况**无需任何配置**。若你要指向别的图库，在 cordis.yml 里加一行覆盖 `memeRoot`：
+默认内置图库（`memes/official-001`），开箱即用。**推荐**把 `memeRoot` 指向包外目录——图库存包内会在升级插件时被重置（历史教训）：
 
 ```yaml
-- id: selfloom-expression
+- id: dsh-expression
   name: dsh-expression
   config:
-    memeRoot: /your/path/to/meme-pack   # 可选；默认内置 memes/official-001
+    memeRoot: /your/path/to/meme-pack   # 推荐包外目录,升级不丢数据
 ```
 
-装完后新开一个会话，模型就会看到 `send_meme`。
+代价：带 `config` 的 bundle patch 升级后需重启一次（不能热挂载）。
 
 ## 装完即用
 
@@ -71,54 +69,53 @@ pnpm add file:/path/to/dsh-expression
 模型: 调 send_meme query=「无语」→ 拿到真实文件 → 发图并简短接话
 ```
 
-也可以在输入框左侧点 **😊** 直接选图一键发出，无需让模型代劳：
+输入框左侧点 **😊**（微信同款笑脸）直接选图一键发出，无需让模型代劳。
 
-```bash
-# 模型视角自检图库:
-# 「send_meme 搜一下'下班'有什么」
-```
+## 工具
 
-实际效果（会话里让模型发表情包，search 选图 → 发出）：
+| 工具 | 作用 |
+|------|------|
+| `send_meme` | 语义搜图 / 发图（Web 模式返回可展示 URL） |
+| `learn_meme` | **自动学图**：传对话附件 `attachmentId` 或图片 `imageUrl`，自动识别内容（分类/描述/关键词）后收录进图库，之后 `send_meme` 就能搜到 |
 
-配合 [dsh-companion](https://github.com/yyh-001/dsh-companion)（陪伴插件），模型也可以根据情绪主动发送表情包——情绪到了直接发。
+## 纯文本模式（默认）
 
-<p align="center">
-  <img src="docs/chat-example.png" alt="配合 dsh-companion，模型根据情绪主动发表情包" />
-</p>
+**界面显示表情图片，模型实际收到的是描述文字**——兼容不支持图片的纯文本模型：
+
+- 悬浮窗发表情 = 发送纯文本 `[表情: 描述](图片URL)`：模型读到文字，不触发 dsh 的图片准入检查（选纯文本模型也能用）
+- 前端把这段文本实时渲染成表情图片（对话里看起来就是表情）
+- 直接上传的图片不受影响（原样给模型）
 
 ## 界面
 
-设置页「表情包」面板：浏览 / 编辑 / 删除图库，也可直接上传新图。
+设置页「表情包」面板（已美化）：
 
-<p align="center">
-  <img src="docs/settings-panel.png" alt="dsh-expression 设置页表情包管理面板" />
-</p>
+- **上传弹窗**：选图预览 + 分类下拉（选择/新建/删除分类）+ 描述 + 关键词
+- **编辑弹窗**：同款分类下拉，改分类/描述/关键词
+- **分类中文显示**：下拉与卡片显示「生气 (angry)」式中文
+- 分类筛选即时生效
 
-输入框 😊 一键发表情包：点开面板 → 搜索 / 浏览缩略图 → 点一张直接发出（点外部自动收起）。
-
-<p align="center">
-  <img src="docs/quick-picker.png" alt="dsh-expression 输入框一键发表情包" />
-</p>
+输入框 😊 一键发表情包：点开面板 → 搜索 / 浏览缩略图 → 点一张直接发出。
 
 ## 它做什么
 
 | 能力 | 说明 |
 |------|------|
 | **语义搜图** | 口语 query → bigram Dice 相似度排序；口语词同义词兜底（「摸鱼」→ 下班/工作分类） |
-| **真实路径发出** | 索引内相对路径解析后禁止逃出图库根，只发 `MemesStore` 返回的真实文件 |
-| **输入框一键发图** | 会话输入框左侧 😊 按钮 → 悬浮面板选图 → 一点即发；点外部自动收起 |
+| **自动学图** | `learn_meme` 收录对话附件/URL 图片，自动识别分类描述（当前默认模型需支持图片输入） |
+| **纯文本模式** | 界面显示图片、模型收描述文字，兼容纯文本模型 |
+| **输入框一键发图** | 会话输入框左侧 😊 按钮 → 悬浮面板选图 → 一点即发 |
 | **情绪主动发图** | 工具描述鼓励"情绪到了直接发"；发完不啰嗦、不复述图 |
-| **数据零迁移** | 直接读 selfloom 图库（`index.db` SQLite 只读 + `memes/<tag>/` 图片），无需任何导入步骤 |
+| **管理 API** | 上传 / 编辑 / 删除 / 删除分类，全部在设置页完成，数据持久 |
 
 ## 日常命令（模型视角）
 
 ```text
 send_meme query=「想下班」          # 语义检索 + 发送
 send_meme tag=shy                  # 按分类发一张
-send_meme query=「不存在的词」      # 无命中 → 返回图库分类清单，引导换词重试
+learn_meme attachmentId="sha256:…" # 收录对话里上传的表情(自动识别)
+learn_meme imageUrl="…"            # 收录任意图片 URL
 ```
-
-数据根目录默认是随包内置的 `memes/official-001`；可用 `config.memeRoot` 覆盖到别处。
 
 ## 给模型的三条铁律
 
@@ -134,32 +131,34 @@ send_meme query=「不存在的词」      # 无命中 → 返回图库分类清
 
 - 上游仓库：[anka-afk/astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01)（`main` 分支），维护者 **anka-afk**
 - 构成：`index.db`（SQLite 索引，含每张 caption/关键词，供语义检索）+ `manifest.json`（分类说明 + 来源标注）+ `memes/<tag>/` 图片 + `previews/`
-- 本仓库内置版本已删减 8 张不合适的图片（92 张），索引与磁盘保持一致
 - ⚠️ 上游**未提供 LICENSE**：这套图缺乏显式的再分发许可。随插件打包作为个人默认库使用没问题；如需公开对外分发，请保留 manifest.json 中的上游来源标注。
 
 ## 接到你的 Agent
 
 | 组件 | 说明 |
 |------|------|
-| **dsh-expression** | 本插件：`MemesStore`（检索）+ `send_meme`（发送） |
+| **dsh-expression** | 本插件：`MemesStore`（检索）+ `send_meme`（发送）+ `learn_meme`（学图）+ 管理 API |
 | **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + QQ 通道；提供 `companionQq` 服务供发图 |
 | **图库** | 内置默认图库 `memes/official-001/`（可 `memeRoot` 覆盖），源自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) |
 
 ```text
 dsh-expression/
-  index.js        插件入口：memeRoot 配置 + companionQq 服务消费
-  memes.js        MemesStore：SQLite 只读索引 + bigram Dice 检索 + 路径安全
+  index.js          插件入口：memeRoot 配置 + 管理 API + learn_meme/识图
+  memes.js          MemesStore：SQLite 索引 + bigram Dice 检索 + 路径安全
+  client.js         前端：设置页面板(上传/编辑/删除) + 😊 悬浮窗 + 表情文本渲染
+  cordis.patch.yml  bundle patch(带 memeRoot 配置)
   memes/
     official-001/   内置默认图库（index.db + manifest.json + memes/<tag>/）
-  package.json    name / inject / peer deps
+  package.json      name / inject / peer deps
   README.md
   LICENSE
 ```
 
 ## 已知限制
 
-- 管理操作（上传/删除/改元数据）未移植——图库维护仍走原 selfloom 控制台或直接操作目录；
+- 图片/媒体入站未实现（`send_image` 未移植）；
 - 发送目标是 QQ 通道的"最近聊天"（与 dsh-companion 的单目标 MVP 一致）；
+- `learn_meme` 自动识图依赖当前默认模型支持图片输入（不支持时会提示）；
 - 检索算法与 selfloom 原版一致（bigram Dice），部分口语词的匹配质量取决于图库 caption。
 
 ## License

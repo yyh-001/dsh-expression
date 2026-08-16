@@ -30,7 +30,7 @@ window.__ModuleLoader__.load({
       '.meme-panel .meme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}',
       '.meme-panel .meme-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;overflow:hidden;background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .12s ease,box-shadow .12s ease}',
       '.meme-panel .meme-card:hover{transform:translateY(-2px);box-shadow:0 5px 14px rgba(0,0,0,.12)}',
-      '.meme-panel .meme-card img{width:100%;height:120px;object-fit:cover;display:block;background:var(--dsw-alias-bg-base)}',
+      '.meme-panel .meme-card img{width:100%!important;height:120px!important;object-fit:contain!important;display:block;background:var(--dsw-alias-bg-base);padding:4px;box-sizing:border-box}',
       '.meme-panel .meta{padding:8px 10px;display:flex;flex-direction:column;gap:5px;min-height:80px}',
       '.meme-panel .tag{display:inline-block;align-self:flex-start;font-size:11px;color:var(--dsw-alias-brand-primary);text-transform:lowercase;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,transparent);border-radius:999px;padding:1px 8px}',
       '.meme-panel .cap{font-size:12px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}',
@@ -41,11 +41,21 @@ window.__ModuleLoader__.load({
       '.meme-modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}',
       '.meme-modal{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:12px;padding:16px;width:340px;max-width:100%;box-shadow:0 10px 36px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:10px}',
       '.meme-modal h3{margin:0;font-size:14px;font-weight:600}',
-      '.meme-modal img{width:100%;max-height:220px;object-fit:contain;border-radius:8px;background:var(--dsw-alias-bg-base)}',
+      '.meme-modal img{width:100%!important;height:220px!important;object-fit:contain!important;border-radius:8px;background:var(--dsw-alias-bg-base);padding:6px;box-sizing:border-box}',
       '.meme-modal .field{display:flex;flex-direction:column;gap:4px}',
+      '.meme-modal input[type=text],.meme-modal select,.meme-modal textarea{box-sizing:border-box;width:100%}',
       '.meme-modal .field label{font-size:11px;color:var(--dsw-alias-label-secondary)}',
       '.meme-modal .modal-acts{display:flex;gap:8px;justify-content:flex-end}',
     ].join('')
+
+    // 分类中文显示(仅 UI,存储/搜索仍是英文 tag)
+    const TAG_ZH = {
+      angry: '生气', happy: '开心', sad: '难过', shy: '害羞', confused: '困惑',
+      surprised: '惊讶', sleep: '睡觉', meow: '喵喵', morning: '早上好', work: '上班',
+      like: '喜欢', see: '看看', reply: '回复', sigh: '叹气', baka: '笨蛋',
+      fool: '傻瓜', givemoney: '给钱', color: '彩色', cpu: 'CPU',
+    }
+    const tagZh = (t) => TAG_ZH[t] || t
 
     async function apiGet(params) {
       const qs = new URLSearchParams()
@@ -76,7 +86,9 @@ window.__ModuleLoader__.load({
       const [upKeywords, setUpKeywords] = React.useState('')
       const [uploading, setUploading] = React.useState(false)
       const [uploadOpen, setUploadOpen] = React.useState(false)
+      const [upNewTag, setUpNewTag] = React.useState('')
       const [upFile, setUpFile] = React.useState(null)
+      const [upData64, setUpData64] = React.useState('')
       const [upPreview, setUpPreview] = React.useState('')
       const fileRef = React.useRef(null)
 
@@ -99,6 +111,21 @@ window.__ModuleLoader__.load({
       }
       React.useEffect(() => { load('', '') }, [])
 
+      const onDeleteTag = async (tagArg) => {
+        const tag = tagArg || (upTag === '__new__' ? '' : String(upTag || '').trim())
+        if (!tag) return
+        if (!window.confirm('删除分类「' + tagZh(tag) + ' (' + tag + ')」及其中所有表情包?此操作不可恢复')) return
+        try {
+          const res = await apiPost({ op: 'deleteTag', tag })
+          setNotice(res && res.ok ? '已删除分类,共 ' + (res.deleted || 0) + ' 张' : '删除失败: ' + (res && res.error || ''))
+          setUpTag('')
+          setUpNewTag('')
+          await load(q, tagFilter === tag ? '' : tagFilter)
+        } catch (error) {
+          setNotice('删除失败: ' + (error && error.message ? error.message : String(error)))
+        }
+      }
+
       const onPickFile = (ev) => {
         const file = ev.target.files && ev.target.files[0]
         ev.target.value = ''
@@ -109,12 +136,17 @@ window.__ModuleLoader__.load({
         }
         setUpFile(file)
         setUpPreview(URL.createObjectURL(file))
+        const reader = new FileReader()
+        reader.onload = () => setUpData64(String(reader.result || '').split(',')[1] || '')
+        reader.readAsDataURL(file)
       }
 
       const onConfirmUpload = async () => {
         const file = upFile
         if (!file) { setNotice('先选择图片文件'); return }
-        if (!upTag.trim()) { setNotice('先填新图分类(tag)'); return }
+        const tag = upTag === '__new__' ? String(upNewTag || '').trim().toLowerCase() : String(upTag || '').trim()
+        if (!tag) { setNotice('先选择或填写分类'); return }
+        if (!/^[a-z0-9_-]+$/.test(tag)) { setNotice('分类只能是小写字母/数字/-/_'); return }
         setUploading(true)
         const reader = new FileReader()
         reader.onload = async () => {
@@ -122,7 +154,7 @@ window.__ModuleLoader__.load({
           try {
             const res = await apiPost({
               op: 'upload',
-              tag: upTag.trim().toLowerCase(),
+              tag,
               caption: String(upCaption || '').trim(),
               keywords: String(upKeywords || '').trim(),
               fileName: file.name,
@@ -134,6 +166,7 @@ window.__ModuleLoader__.load({
               setUpFile(null)
               setUpPreview('')
               setUpTag('')
+              setUpNewTag('')
               setUpCaption('')
               setUpKeywords('')
               await load(q, tagFilter)
@@ -150,10 +183,11 @@ window.__ModuleLoader__.load({
       const onSaveEdit = async () => {
         if (!edit) return
         try {
+          const tag = edit.tag === '__new__' ? String(edit.newTag || '').trim().toLowerCase() : String(edit.tag || '').trim().toLowerCase()
           const res = await apiPost({
             op: 'update',
             path: edit.path,
-            tag: String(edit.tag || '').trim().toLowerCase(),
+            tag,
             caption: String(edit.caption || ''),
             keywords: String(edit.keywords || ''),
           })
@@ -189,7 +223,7 @@ window.__ModuleLoader__.load({
         onChange: (e) => { setTagFilter(e.target.value); load(q, e.target.value) },
       }, [
         h('option', { key: '', value: '' }, '全部分类'),
-        tags.map((t) => h('option', { key: t, value: t }, t)),
+        tags.map((t) => h('option', { key: t, value: t }, tagZh(t) + ' (' + t + ')')),
       ])
 
       const fileInput = h('input', {
@@ -203,7 +237,7 @@ window.__ModuleLoader__.load({
       const cards = memes.map((m) => h('div', { key: m.path, className: 'meme-card' },
         h('img', { src: m.url, alt: m.path, loading: 'lazy' }),
         h('div', { className: 'meta' },
-          h('div', { className: 'tag' }, m.tag),
+          h('div', { className: 'tag' }, tagZh(m.tag)),
           h('div', { className: 'cap' }, m.caption || m.file_name),
           h('div', { className: 'acts' },
             h('button', { onClick: () => setEdit({ path: m.path, tag: m.tag, caption: m.caption || '', keywords: m.keywords || '' }) }, '编辑'),
@@ -216,7 +250,6 @@ window.__ModuleLoader__.load({
         h('div', { className: 'section-title' }, '上传新表情包'),
         h('div', { className: 'row' },
           h('button', { className: 'btn-primary', onClick: () => setUploadOpen(true) }, '上传表情包'),
-          h('span', { className: 'total' }, '点击按钮在弹窗里选图并填写分类/描述'),
         ),
         h('div', { className: 'section-title' }, '图库 (' + total + ' 张)'),
         h('div', { className: 'row' },
@@ -236,7 +269,16 @@ window.__ModuleLoader__.load({
             h('img', { src: memes.find((m) => m.path === edit.path)?.url, alt: edit.path }),
             h('div', { className: 'field' },
               h('label', null, '分类'),
-              h('input', { type: 'text', value: edit.tag, placeholder: '如 angry/happy', onChange: (e) => setEdit({ ...edit, tag: e.target.value }) }),
+              h('div', { className: 'row', style: { width: '100%' } },
+                h('select', { value: edit.tag, onChange: (e) => setEdit({ ...edit, tag: e.target.value }), style: { flex: 1 } },
+                  (tags.includes(edit.tag) ? tags : [edit.tag, ...tags]).map((t) => h('option', { key: t, value: t }, tagZh(t) + ' (' + t + ')')),
+                  h('option', { value: '__new__' }, '+ 新建分类'),
+                ),
+                h('button', { onClick: () => onDeleteTag(edit.tag), disabled: !edit.tag || edit.tag === '__new__', title: '删除该分类及其中所有表情包' }, '删除分类'),
+              ),
+              edit.tag === '__new__'
+                ? h('input', { type: 'text', value: edit.newTag || '', placeholder: '新分类名,小写字母/数字/-/_', onChange: (e) => setEdit({ ...edit, newTag: e.target.value }), style: { width: '100%' } })
+                : null,
             ),
             h('div', { className: 'field' },
               h('label', null, '描述'),
@@ -261,13 +303,24 @@ window.__ModuleLoader__.load({
               : h('div', { className: 'empty', style: { padding: '24px', border: '1px dashed var(--dsw-alias-border-l1)', borderRadius: 8 } },
                   h('button', { onClick: () => fileRef.current && fileRef.current.click() }, '选择图片'),
                 ),
+
             h('div', { className: 'field' },
               h('label', null, upFile ? '已选: ' + upFile.name + ' (点击更换)' : '文件'),
               h('input', { type: 'text', placeholder: upFile ? '' : '先选图片', value: '', readOnly: true, style: { display: 'none' } }),
             ),
             h('div', { className: 'field' },
               h('label', null, '分类(必填)'),
-              h('input', { type: 'text', value: upTag, placeholder: '如 angry/happy/meme', onChange: (e) => setUpTag(e.target.value) }),
+              h('div', { className: 'row', style: { width: '100%' } },
+                h('select', { value: upTag, onChange: (e) => setUpTag(e.target.value), style: { flex: 1 } },
+                  h('option', { value: '' }, '选择分类'),
+                  tags.map((t) => h('option', { key: t, value: t }, tagZh(t) + ' (' + t + ')')),
+                  h('option', { value: '__new__' }, '+ 新建分类'),
+                ),
+                h('button', { onClick: onDeleteTag, disabled: !upTag || upTag === '__new__', title: '删除该分类及其中所有表情包' }, '删除分类'),
+              ),
+              upTag === '__new__'
+                ? h('input', { type: 'text', value: upNewTag, placeholder: '新分类名,小写字母/数字/-/_', onChange: (e) => setUpNewTag(e.target.value), style: { width: '100%' } })
+                : null,
             ),
             h('div', { className: 'field' },
               h('label', null, '描述'),

@@ -14,14 +14,14 @@
  * 管理操作(上传/删除/改元数据)不移植——那是控制台的活,模型只需"选图发送"。
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, rmSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { MemesStore, defaultMemeRoot, registerSendMemeTool } from './memes.js'
 
 export const name = 'dsh-expression'
-export const inject = ['tools', 'webServer']
+export const inject = ['tools', 'webServer', 'agentDefaultModel', 'attachments']
 
 const MIME = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
@@ -43,7 +43,6 @@ export function apply(ctx, config) {
   let urlPrefix = null
   const webServer = ctx.webServer ?? ctx.get('webServer')
   if (webServer) {
-    const allowed = new Set(memes.list().memes.map((m) => m.path))
     const host = webServer.host === '0.0.0.0' ? '127.0.0.1' : webServer.host
     const base = 'http://' + host + ':' + webServer.port
     try {
@@ -53,6 +52,8 @@ export function apply(ctx, config) {
         handler(req, res) {
           const pathname = String(req.url || '').split('?')[0]
           const stored = pathname.startsWith(ROUTE + '/') ? pathname.slice(ROUTE.length + 1) : null
+          // 每次请求动态构建白名单:静态快照会漏掉新上传的图(历史教训:上传后 404 图片不显示)
+          const allowed = new Set(memes.list().memes.map((m) => m.path))
           if (!stored || !allowed.has(stored)) {
             res.writeHead(404, { 'Content-Type': 'text/plain' })
             res.end('not found')
@@ -115,47 +116,137 @@ export function apply(ctx, config) {
     // ---- AI 自动学表情包:模型给图片 URL,下载收录进图库 ----
     ctx.tools.register(defineTool({
       name: 'learn_meme',
-      description: '把一张图片收录进表情包图库(自动学图)。用户给出一张图片 URL、或明确要求收藏某张图时使用;' +
-        '下载图片 → 存入图库(按分类)→ 之后 send_meme 就能搜到并发送。' +
-        'tag 传分类(angry/happy/sleep/…,小写字母/数字/-/_),caption 传一句话描述(如「无语」),keywords 传搜索关键词(空格分隔)。',
+      description: '把一张图片收录进表情包图库(自动学图)。用户上传了图片附件、或给出一张图片 URL、或明确要求收藏某张图时使用;' +
+        '插件会自动识别图片内容(分类/描述/关键词)后存入图库,之后 send_meme 就能搜到并发送。' +
+        '通常只需传 attachmentId(对话里上传的图片)或 imageUrl 即可(自动识别);tag/caption/keywords 可选,手动指定时优先用指定值。',
       parameters: {
-        imageUrl: { type: 'string', description: '图片的可下载 URL(http/https)' },
-        tag: { type: 'string', description: '分类,如 angry/happy/meme' },
-        caption: { type: 'string', description: '一句话描述,如「无语」(可选)' },
-        keywords: { type: 'string', description: '搜索关键词,空格分隔(可选)' },
+        attachmentId: { type: 'string', description: '对话中上传的图片附件 id(用户上传图片时给出,如 sha256:...)' },
+        imageUrl: { type: 'string', description: '图片的可下载 URL(/dsh-memes/... 或 http(s)),与 attachmentId 二选一' },
+        tag: { type: 'string', description: '手动指定分类,如 angry/happy(可选,默认自动识别)' },
+        caption: { type: 'string', description: '手动指定描述(可选,默认自动识别)' },
+        keywords: { type: 'string', description: '手动指定搜索关键词,空格分隔(可选,默认自动识别)' },
       },
       output: {
         schema: { type: 'json' },
         render: (_args, value) => [{ type: 'text', text: value.message }],
       },
-      async execute(args) {
+      async execute(args, exec) {
         const imageUrl = typeof args.imageUrl === 'string' ? args.imageUrl.trim() : ''
-        const tag = typeof args.tag === 'string' ? args.tag.trim().toLowerCase() : ''
-        const caption = String(args.caption || '').trim().slice(0, 200)
-        const keywords = String(args.keywords || '').trim().slice(0, 200)
-        if (!/^https?:\/\//i.test(imageUrl)) return { ok: false, message: 'imageUrl 必须是 http(s) 链接' }
-        if (!tag || !validTagRe.test(tag)) return { ok: false, message: 'tag 只能是小写字母/数字/-/_(如 angry/happy)' }
+        const attachmentId = typeof args.attachmentId === 'string' ? args.attachmentId.trim() : ''
+        let tag = typeof args.tag === 'string' ? args.tag.trim().toLowerCase() : ''
+        let caption = String(args.caption || '').trim().slice(0, 200)
+        let keywords = String(args.keywords || '').trim().slice(0, 200)
+        if (!attachmentId && !imageUrl) return { ok: false, message: '需要 attachmentId(对话里的图片附件)或 imageUrl' }
         try {
-          const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000), redirect: 'follow' })
-          if (!res.ok) return { ok: false, message: '下载失败: HTTP ' + res.status }
-          const ctype = String(res.headers.get('content-type') || '')
-          const m = /image\/(jpeg|png|gif|webp)/.exec(ctype)
-          const ext = m ? { jpeg: '.jpg', png: '.png', gif: '.gif', webp: '.webp' }[m[1]] : ''
-          if (!ext) return { ok: false, message: '该 URL 不是图片(jpg/png/gif/webp)' }
-          const buf = Buffer.from(await res.arrayBuffer())
+          let buf
+          let mime
+          let fileName
+          let ext
+          if (attachmentId) {
+            // 附件模式:从会话消息历史解析图片附件(不依赖任何第三方插件)
+            const session = exec && exec.agent && exec.agent.session
+            let ref = null
+            if (session && typeof session.deriveMessages === 'function') {
+              for (const msg of session.deriveMessages()) {
+                const blocks = (msg && msg.content) || []
+                for (const b of blocks) {
+                  if (b && b.type === 'image' && b.attachment && String(b.attachment.attachmentId) === attachmentId) {
+                    ref = b.attachment
+                    break
+                  }
+                }
+                if (ref) break
+              }
+            }
+            if (!ref) return { ok: false, message: '找不到附件 ' + attachmentId + '(必须是本次对话上传的图片)' }
+            const stored = await ctx.get('attachments').readImage(ref)
+            buf = stored.data
+            mime = stored.ref.mediaType
+            fileName = stored.ref.name || 'meme' + (mime === 'image/png' ? '.png' : mime === 'image/gif' ? '.gif' : mime === 'image/webp' ? '.webp' : '.jpg')
+            ext = fileName.includes('.') ? '.' + fileName.split('.').pop().toLowerCase() : '.jpg'
+          } else {
+            if (!/^https?:\/\//i.test(imageUrl)) return { ok: false, message: 'imageUrl 必须是 http(s) 链接' }
+            const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000), redirect: 'follow' })
+            if (!res.ok) return { ok: false, message: '下载失败: HTTP ' + res.status }
+            const ctype = String(res.headers.get('content-type') || '')
+            const m = /image\/(jpeg|png|gif|webp)/.exec(ctype)
+            mime = m ? { jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' }[m[1]] : ''
+            if (!mime) return { ok: false, message: '该 URL 不是图片(jpg/png/gif/webp)' }
+            buf = Buffer.from(await res.arrayBuffer())
+            if (buf.byteLength === 0 || buf.byteLength > 8 * 1024 * 1024) return { ok: false, message: '图片大小超限(≤8MB)' }
+            ext = m ? { jpeg: '.jpg', png: '.png', gif: '.gif', webp: '.webp' }[m[1]] : ''
+            fileName = imageUrl.split('/').pop() || 'meme.jpg'
+          }
           if (buf.byteLength === 0 || buf.byteLength > 8 * 1024 * 1024) return { ok: false, message: '图片大小超限(≤8MB)' }
+          // 未指定分类时自动识图(学图即识图)
+          let auto = false
+          if (!tag) {
+            const sel = ctx.agentDefaultModel && typeof ctx.agentDefaultModel.currentSelection === 'function'
+              ? ctx.agentDefaultModel.currentSelection() : null
+            const r = await recognizeImageBytes(ctx.get('llm'), sel, buf, mime, fileName)
+            auto = true
+            if (!tag) tag = r.tag
+            if (!caption) caption = r.caption
+            if (!keywords) keywords = r.keywords
+          }
+          if (!tag || !validTagRe.test(tag)) return { ok: false, message: '分类无效(tag 只能小写字母/数字/-/_),请手动指定 tag' }
           const name = Date.now() + '_' + Math.floor(Math.random() * 1000) + ext
           const rel = 'memes/' + tag + '/' + name
           mkdirSync(join(memes.root, 'memes', tag), { recursive: true })
           writeFileSync(join(memes.root, rel), buf)
           adminDb.prepare('INSERT INTO memes (path, tag, file_name, caption, keywords, mtime, captioned_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
             .run(rel, tag, name, caption, keywords, Date.now(), Date.now())
-          return { ok: true, path: rel, tag, url: ROUTE + '/' + rel, message: '已收录: [' + tag + '] ' + (caption || name) + ' → ' + rel }
+          return { ok: true, path: rel, tag, url: ROUTE + '/' + rel, message: '已收录: [' + tag + '] ' + (caption || name) + (auto ? ' (AI 自动识别)' : '') + ' → ' + rel }
         } catch (error) {
           return { ok: false, message: '收录失败: ' + (error instanceof Error ? error.message : String(error)) }
         }
       },
     }))
+
+    // ---- AI 识图核心:当前默认模型识别图片 → 分类/描述/关键词 ----
+    async function recognizeImageBytes(llm, sel, buf, mime, fileName) {
+      const provider = sel && sel.provider
+      const model = sel && sel.model
+      if (!llm || !provider || !model) throw new Error('未配置模型,无法识图')
+      const info = await llm.resolveModelInfo(provider, model)
+      const modalities = info && info.inputModalities
+      if (!Array.isArray(modalities) || !modalities.includes('image')) {
+        throw new Error('当前模型「' + model + '」不支持图片输入,无法识图')
+      }
+      // 先 materialize 默认配置(reasoningEffort 等),否则 stream 时配置比对不一致报错
+      // (历史教训: prepared LLM call config changed before adapter dispatch)
+      const base = await llm.resolveCallConfig({ provider, model, maxTokens: 1024 })
+      const prepared = await llm.prepareCall(base)
+      const prompt = '你是表情包分类助手。识别这张表情包图片,只输出 JSON(不要任何其他文字):\n' +
+        '{"tag":"分类(小写英文,参考: angry生气 happy开心 sad难过 shy害羞 confused困惑 surprised惊讶 sleep睡觉 work上班 like喜欢 see看看 meow喵喵 speechless无语),选最贴切的一个","caption":"一句话中文描述这张图表达的情绪/梗","keywords":"3-5个中文搜索词,空格分隔"}\n'
+      let out = ''
+      let reason = ''
+      for await (const chunk of prepared.stream({
+        ...base,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image', attachment: await ctx.get('attachments').saveImage({ data: buf, mediaType: mime, name: fileName }) },
+          ],
+        }],
+      })) {
+        if (chunk.type === 'text-delta') out += chunk.text
+        else if (chunk.type === 'reasoning-delta') reason += chunk.text
+        else if (chunk.type === 'finish' && chunk.reason && chunk.reason.kind === 'error') {
+          throw new Error('模型调用失败: ' + (chunk.reason.failure && chunk.reason.failure.message || JSON.stringify(chunk.reason.failure)))
+        }
+      }
+      // 思考型模型可能把 JSON 写在 reasoning 里,正文为空时兜底解析
+      const m = /\{[\s\S]*\}/.exec(out) || /\{[\s\S]*\}/.exec(reason)
+      if (!m) throw new Error('模型未返回有效 JSON')
+      const parsed = JSON.parse(m[0])
+      const tag = String(parsed.tag || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20)
+      const caption = String(parsed.caption || '').trim().slice(0, 200)
+      const keywords = String(parsed.keywords || '').trim().slice(0, 200)
+      if (!tag) throw new Error('模型未给出分类')
+      return { tag, caption, keywords }
+    }
 
     const readBody = (req) => new Promise((resolve, reject) => {
       const chunks = []
@@ -224,6 +315,12 @@ export function apply(ctx, config) {
             adminDb.prepare('DELETE FROM memes WHERE path = ?').run(path)
             try { unlinkSync(join(memes.root, path)) } catch { /* 文件已不存在 */ }
             json(res, { ok: true })
+          } else if (op === 'deleteTag') {
+            const tag = String(body.tag || '').trim().toLowerCase()
+            if (!tag || !validTagRe.test(tag)) throw new Error('tag 只能是小写字母/数字/-/_')
+            const n = adminDb.prepare('DELETE FROM memes WHERE tag = ?').run(tag).changes
+            rmSync(join(memes.root, 'memes', tag), { recursive: true, force: true })
+            json(res, { ok: true, deleted: n })
           } else {
             json(res, { ok: false, error: '未知操作: ' + op }, 400)
           }

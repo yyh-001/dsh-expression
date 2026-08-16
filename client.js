@@ -462,20 +462,24 @@ window.__ModuleLoader__.load({
 
     // ---- 输入框快捷发图(QQ 式):😊 按钮 + 悬浮面板 ----
     const memePickerCSS = [
-      '.meme-trigger{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;cursor:pointer;color:var(--dsw-alias-label-secondary);background:transparent;border:none;font-size:17px;line-height:1;outline:none}',
+      '.meme-trigger{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;cursor:pointer;color:var(--dsw-alias-label-secondary);background:transparent;border:none;line-height:1;outline:none;transition:background .12s,color .12s}',
       '.meme-trigger:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}',
-      '.meme-trigger.active{color:var(--dsw-alias-brand-primary)}',
-      '.meme-picker{position:absolute;bottom:calc(100% + 8px);left:0;width:min(340px,88vw);z-index:30;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px;padding:10px;max-height:42vh;overflow:hidden;font-size:12px;color:var(--dsw-alias-label-primary)}',
+      '.meme-trigger.active{color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent)}',
+      '.meme-picker{position:absolute;bottom:calc(100% + 8px);left:0;width:min(360px,90vw);z-index:30;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.28);display:flex;flex-direction:column;gap:10px;padding:12px;max-height:46vh;overflow:hidden;font-size:12px;color:var(--dsw-alias-label-primary)}',
       '.meme-picker .mp-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}',
-      '.meme-picker input[type=text]{flex:1;min-width:120px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:4px 8px;font-size:12px;outline:none}',
-      '.meme-picker input[type=text]:focus{border-color:var(--dsw-alias-brand-primary)}',
+      '.meme-picker .mp-search{display:flex;align-items:center;gap:6px;flex:1;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:9px;padding:5px 10px;transition:border-color .12s,box-shadow .12s}',
+      '.meme-picker .mp-search:focus-within{border-color:var(--dsw-alias-brand-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-brand-primary) 15%,transparent)}',
+      '.meme-picker .mp-search .mp-search-icon{color:var(--dsw-alias-label-secondary);font-size:12px;flex:none}',
+      '.meme-picker .mp-search input{flex:1;min-width:0;background:transparent;color:var(--dsw-alias-label-primary);border:none;font-size:12px;outline:none;padding:0}',
+      '.meme-picker .mp-search input::placeholder{color:var(--dsw-alias-label-secondary)}',
       '.meme-picker .mp-tags{display:flex;gap:4px;flex-wrap:wrap;max-width:100%}',
-      '.meme-picker .mp-tag{padding:2px 8px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);cursor:pointer;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px}',
+      '.meme-picker .mp-tag{padding:3px 10px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);cursor:pointer;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;transition:background .12s,color .12s,border-color .12s}',
+      '.meme-picker .mp-tag:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary)}',
       '.meme-picker .mp-tag.on{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-layer-1)}',
-      '.meme-picker .mp-grid{overflow-y:auto;display:flex;flex-wrap:wrap;gap:6px;max-height:36vh}',
-      '.meme-picker .mp-cell{width:74px;height:74px;flex:0 0 74px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden;cursor:pointer;background:var(--dsw-alias-bg-layer-2);padding:0;display:block;transition:border-color .12s}',
-      '.meme-picker .mp-cell:hover{border-color:var(--dsw-alias-brand-primary)}',
-      '.meme-picker .mp-empty{color:var(--dsw-alias-label-secondary);text-align:center;padding:24px 0}',
+      '.meme-picker .mp-grid{overflow-y:auto;display:flex;flex-wrap:wrap;gap:8px;max-height:38vh;padding:2px}',
+      '.meme-picker .mp-cell{width:76px;height:76px;flex:0 0 76px;border:1px solid var(--dsw-alias-border-l1);border-radius:11px;overflow:hidden;cursor:pointer;background:var(--dsw-alias-bg-layer-2);padding:0;display:block;transition:border-color .12s,transform .12s,box-shadow .12s}',
+      '.meme-picker .mp-cell:hover{border-color:var(--dsw-alias-brand-primary);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}',
+      '.meme-picker .mp-empty{color:var(--dsw-alias-label-secondary);text-align:center;padding:28px 0}',
     ].join('')
 
     function makeMemeStore() {
@@ -568,14 +572,13 @@ window.__ModuleLoader__.load({
         store.set(false)
       }
 
-      const searchInput = h('input', {
-        type: 'text', placeholder: '搜表情/情绪', value: q,
-        onChange: (e) => setQ(e.target.value),
-      })
-      const clearBtn = h('button', {
-        className: 'mp-tag', style: { marginLeft: 'auto' },
-        onClick: () => { setQ('') },
-      }, '复位')
+      const searchInput = h('div', { className: 'mp-search' },
+        h('span', { className: 'mp-search-icon' }, '🔍'),
+        h('input', {
+          type: 'text', placeholder: '搜表情/情绪', value: q,
+          onChange: (e) => setQ(e.target.value),
+        }),
+      )
       const cells = memes.map((m) => h('div', {
         key: m.path, className: 'mp-cell', title: m.caption || m.file_name, onClick: () => send(m),
         style: {
@@ -588,7 +591,7 @@ window.__ModuleLoader__.load({
       }))
 
       return h('div', { className: 'meme-picker', onClick: (e) => e.stopPropagation() },
-        h('div', { className: 'mp-row' }, searchInput, clearBtn),
+        h('div', { className: 'mp-row' }, searchInput),
         memes.length === 0
           ? h('div', { className: 'mp-empty' }, '没有匹配的表情包')
           : h('div', { className: 'mp-grid' }, cells),

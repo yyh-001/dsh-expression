@@ -159,11 +159,10 @@ export function apply(ctx, config) {
     const assembled = await next()
     assembled.sections.push({
       name: 'dsh-expression:companion',
-      text: '【陪伴模式 · 斗图】聊天中情绪到位就主动斗图:\n' +
-        '- 情绪到位就主动用 send_meme 发一张贴题的表情包,别冷场;\n' +
-        '- 时机:情绪到点就发;对方说正事/干活时克制,别硬凑;\n' +
-        '- 发完保持简短,让图自己说话,不啰嗦不复述;\n' +
-        '- 搜不到贴题的图就回文字,列分类让用户换词,绝不硬发。',
+      text: '【陪伴模式 · 斗图】主动斗图,不要等用户开口:\n' +
+        '- 聊天气氛合适就主动用 send_meme 发一张贴题的表情包,不用等用户要求,发图优先于纯文字;\n' +
+        '- 情绪到点、接梗、吐槽、卖萌时都主动甩图,别冷场;对方说正事/干活时克制;\n' +
+        '- 发完保持简短,让图自己说话,不啰嗦不复述。',
     })
     return assembled
   })

@@ -18,11 +18,10 @@
 
 **dsh-expression** 是 DeepSeek Harness 的表情包插件——找得到、发得出、学得会：
 
-- **纯文本模型也能斗图**：界面显示表情图片，模型收到的是描述文字，无需图片输入能力
-- **AI 自动学图**：对话里收到表情，`learn_meme` 自动识别内容（分类/描述/关键词）并入库，越聊越有货
-- **情绪主动发图**：模型根据对话情绪主动甩一张贴题的表情包，陪伴式斗图
-- **像 QQ/微信 一样发图**：输入框 😊 悬浮面板点选表情直接发出，体验和聊天软件一致
-- **语义搜图**：口语 query → bigram Dice 相似度排序，搜不到绝不硬发
+- **纯文本也能斗图**：界面显示表情图片，模型收到的是 `[表情: 描述]`，无需图片输入能力
+- **AI 自动学图**：用户说「入库」时，`learn_meme` 收录最近一张用户附件（不必填附件 id），自动识别分类/描述
+- **情绪主动发图**：先选情绪桶，系统随机抽若干张 caption，模型挑一张贴进回复
+- **像 QQ/微信 一样发图**：输入框 😊 悬浮面板点选表情直接发出
 - **零第三方依赖**：仅 node:sqlite，装完即用
 
 交流 / 反馈：**QQ 群 [993579665](https://qm.qq.com/q/7AD2g70HqS)**（[点击加入](https://qm.qq.com/q/7AD2g70HqS)）
@@ -31,7 +30,7 @@
 
 ## 安装
 
-已发布到 **npm**（`dsh-expression@0.1.12`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
+已发布到 **npm**（`dsh-expression@0.1.26`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
 
 ```bash
 dsh plugin --profile web add dsh-expression
@@ -58,7 +57,8 @@ pnpm add file:/path/to/dsh-expression
 
 ```text
 用户: 发个无语的表情包
-模型: 调 send_meme query=「无语」→ 拿到真实文件 → 发图并简短接话
+模型: send_meme tag=sad → 随机几张 caption → 把 [表情: …] 贴进回复
+前端: 按描述配图，对话里看起来就是表情
 ```
 
 输入框左侧点 **😊**（微信同款笑脸）直接选图一键发出，无需让模型代劳。
@@ -71,16 +71,17 @@ pnpm add file:/path/to/dsh-expression
 
 | 工具 | 作用 |
 |------|------|
-| `send_meme` | 语义搜图 / 发图（Web 模式返回可展示 URL） |
-| `learn_meme` | **自动学图**：传对话附件 `attachmentId` 或图片 `imageUrl`，自动识别内容（分类/描述/关键词）后收录进图库，之后 `send_meme` 就能搜到 |
+| `send_meme` | 按情绪随机抽候选；Web 模式把 `[表情: 描述]` 写进回复，前端配图 |
+| `learn_meme` | **学图**：用户说「入库」即可（默认最近一张用户附件）；也可传 `attachmentId` / `imageUrl` |
 
-## 纯文本模式（默认）
+## 发图格式（默认）
 
-**界面显示表情图片，模型实际收到的是描述文字**——兼容不支持图片的纯文本模型：
+**界面显示表情图片，模型只读写文字 token**——不触发 dsh 的图片准入检查：
 
-- 悬浮窗发表情 = 发送纯文本 `[表情: 描述](图片URL)`：模型读到文字，不触发 dsh 的图片准入检查（选纯文本模型也能用）
-- 前端把这段文本实时渲染成表情图片（对话里看起来就是表情）
-- 直接上传的图片不受影响（原样给模型）
+- 模型和悬浮窗都发 `[表情: 描述]`（不要带网址）
+- 前端只在**对话气泡**里按 caption 配图（Think / 轨迹 / 工具卡保持纯文字）
+- 引号差异（`“”` / `""`）会折叠后再匹配
+- 直接上传的图片仍是附件，原样进会话；学图走 `learn_meme`
 
 ## 界面
 
@@ -107,11 +108,11 @@ pnpm add file:/path/to/dsh-expression
 
 | 能力 | 说明 |
 |------|------|
-| **语义搜图** | 口语 query → bigram Dice 相似度排序；口语词同义词兜底（「摸鱼」→ 下班/工作分类） |
-| **自动学图** | `learn_meme` 收录对话附件/URL 图片，自动识别分类描述（当前默认模型需支持图片输入） |
-| **纯文本模式** | 界面显示图片、模型收描述文字，兼容纯文本模型 |
+| **按情绪抽图** | 六个情绪桶：happy / angry / sad / shy / confused / daily；随机抽 N 张 caption 给模型挑 |
+| **自动学图** | `learn_meme` 默认收录最近一张用户附件，也可传 URL；识图需当前模型支持图片输入 |
+| **文字 token 发图** | `[表情: 描述]` → 前端配图；只渲染对话气泡 |
 | **输入框一键发图** | 会话输入框左侧 😊 按钮 → 悬浮面板选图 → 一点即发 |
-| **情绪主动发图** | 工具描述鼓励"情绪到了直接发"；发完不啰嗦、不复述图 |
+| **情绪主动发图** | 气氛对了就主动甩图；发完短接，让图自己说话 |
 | **管理 API** | 上传 / 编辑 / 删除 / 删除分类，全部在设置页完成，数据持久 |
 | **图库目录切换** | 设置页浏览选择图库目录，保存即时生效，空目录自动初始化 |
 | **导出 / 导入** | 图库一键打包 ZIP 分享，导入别人的包自动切换（零依赖实现） |
@@ -119,18 +120,20 @@ pnpm add file:/path/to/dsh-expression
 ## 日常命令（模型视角）
 
 ```text
-send_meme query=「想下班」          # 语义检索 + 发送
-send_meme tag=shy                  # 按分类发一张
-learn_meme attachmentId="sha256:…" # 收录对话里上传的表情(自动识别)
-learn_meme imageUrl="…"            # 收录任意图片 URL
+send_meme tag=sad limit=8          # 难过桶随机 8 张，挑一行 [表情: …] 贴进回复
+send_meme tag=happy                # 开心/卖萌
+learn_meme                         # 收录最近一张用户图（不必填 id）
+learn_meme imageUrl="https://…"    # 收录任意图片 URL
 ```
+
+情绪字典：`happy` 开心（卖萌/可爱/喜欢）/ `angry` 生气 / `sad` 难过（无语/求饶）/ `shy` 害羞 / `confused` 困惑惊讶 / `daily` 日常（睡觉/上班/早上好）。不满意再 `search` 同一 tag 换一批。
 
 ## 给模型的三条铁律
 
 完整约定见 `send_meme` 工具描述。
 
-1. 只用 `MemesStore` 返回的真实路径，不手写路径、不自己 `ls` 挑图  
-2. 搜失败就回文字、列分类让用户换词，别硬发  
+1. 把候选里的 `[表情: 描述]` 整段原样写进回复，不要加网址、不要改成 markdown 图片
+2. 没命中就换情绪或回文字，别硬发
 3. 发完保持简短，让图自己说话——不复述、不描述图的内容
 
 ## 图库来源
@@ -138,22 +141,22 @@ learn_meme imageUrl="…"            # 收录任意图片 URL
 内置默认图库（`id: official-001`，名「官方表情包1号」）来自 **Astrbot mememanager 官方初始表情包**：
 
 - 上游仓库：[anka-afk/astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01)（`main` 分支），维护者 **anka-afk**
-- 构成：`index.db`（SQLite 索引，含每张 caption/关键词，供语义检索）+ `manifest.json`（分类说明 + 来源标注）+ `memes/<tag>/` 图片 + `previews/`
+- 构成：`index.db`（SQLite 索引，含每张 caption/关键词）+ `manifest.json`（分类说明 + 来源标注）+ `memes/<tag>/` 图片 + `previews/`
 - ⚠️ 上游**未提供 LICENSE**：这套图缺乏显式的再分发许可。随插件打包作为个人默认库使用没问题；如需公开对外分发，请保留 manifest.json 中的上游来源标注。
 
 ## 接到你的 Agent
 
 | 组件 | 说明 |
 |------|------|
-| **dsh-expression** | 本插件：`MemesStore`（检索）+ `send_meme`（发送）+ `learn_meme`（学图）+ 管理 API |
+| **dsh-expression** | 本插件：`MemesStore`（情绪抽图）+ `send_meme`（发送）+ `learn_meme`（学图）+ 管理 API |
 | **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + 消息通道；提供发图服务 |
 | **图库** | 内置默认图库 `memes/official-001/`（设置页可切换目录/导入分享包），源自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) |
 
 ```text
 dsh-expression/
   index.js          插件入口：memeRoot 配置 + 管理 API + learn_meme/识图
-  memes.js          MemesStore：SQLite 索引 + bigram Dice 检索 + 路径安全
-  client.js         前端：设置页面板(上传/编辑/删除) + 😊 悬浮窗 + 表情文本渲染
+  memes.js          MemesStore：SQLite 索引 + 情绪桶随机抽图 + 路径安全
+  client.js         前端：设置页面板(上传/编辑/删除) + 😊 悬浮窗 + [表情: 描述] 配图
   cordis.patch.yml  bundle patch(纯 insert,热挂载免重启)
   memes/
     official-001/   内置默认图库（index.db + manifest.json + memes/<tag>/）
@@ -164,9 +167,8 @@ dsh-expression/
 
 ## 已知限制
 
-- 图片/媒体入站未实现（`send_image` 未移植）；
-- `learn_meme` 自动识图依赖当前默认模型支持图片输入（不支持时会提示）；
-- 检索算法与 selfloom 原版一致（bigram Dice），部分口语词的匹配质量取决于图库 caption。
+- `learn_meme` 自动识图依赖当前默认模型支持图片输入（不支持时可手动指定 tag/caption）；
+- 磁盘上仍是细 tag（angry/baka/…），模型只认六个情绪桶；caption 对不齐时前端会折叠引号后再配图。
 
 ## License
 

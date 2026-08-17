@@ -699,7 +699,7 @@ window.__ModuleLoader__.load({
               img.src = src
               img.alt = hit[0].slice(0, 60)
               img.title = hit[0].slice(0, 60)
-              img.style.cssText = 'max-width:180px;max-height:180px;border-radius:10px;display:inline-block;vertical-align:middle;margin:2px 0'
+              img.style.cssText = 'max-width:180px;max-height:180px;border-radius:10px;display:block;margin:8px 0'
               frag.appendChild(img)
               imgs.push(img)
             } else {

@@ -555,16 +555,13 @@ window.__ModuleLoader__.load({
 
       if (!open) return null
 
-      // 点击:直接发送(QQ 式)。优先发真图(附件管线),失败再退回文字。
-      // 不附带任何 caption/描述文字,也不触发识图——就安静发图。
+      // 点击:发 [表情: 描述] 文本,前端按描述配图。
       const send = async (m) => {
-        if (!m || !m.url) return
-        // 纯文本消息:[表情: 描述](绝对url) —— 模型收到文字(兼容纯文本模型,
-        // 不触发 dsh 图片准入检查),前端 MutationObserver 把这段文本渲染成图片。
-        const absUrl = (u) => { try { return new URL(u, window.location.origin).href } catch (e) { return u } }
+        if (!m) return
+        // 纯文本:[表情: 描述] —— 模型只看到文字;前端按描述配图。
         const setText = (text) => { try { if (actions && actions.setDraft) actions.setDraft(text) } catch (e) {} }
-        const desc = (m.caption || m.keywords || m.tag || '表情包').slice(0, 100)
-        const text = '[表情: ' + desc + '](' + absUrl(m.url) + ')'
+        const desc = (m.caption || m.keywords || m.tag || '表情包').slice(0, 80)
+        const text = '[表情: ' + desc + ']'
         const cur = store.getBase() || ''
         setText(cur ? (cur.trim() ? cur + '\n' + text : text) : text)
         try { if (actions && actions.submit) actions.submit() } catch (e) {}
@@ -611,14 +608,64 @@ window.__ModuleLoader__.load({
       document.head.appendChild(pickerStyle)
       ctx.effect(() => () => { pickerStyle.remove() }, 'dsh-expression-entry: meme-picker styles')
 
-      // 表情文本渲染:[表情: 描述](url) 文本消息 → 渲染成图片。
-      // 纯文本模式发送的是文本消息(模型读文字),这里在前端把文本装饰成表情图片。
-      const MEME_TEXT_RE = /\[表情:[^\]]*\]\((https?:\/\/[^\s)]+)\)/g
+      // 表情文本渲染:[表情: 描述] 或旧格式 [表情: 描述](url) → 图片。
+      // 无 url 时按描述在图库里匹配。
+      const MEME_TEXT_RE = /\[表情:\s*([^\]]+)\](?:\((https?:\/\/[^\s)]+)\))?/g
+      let memeIndex = null
+      let memeIndexLoading = false
+      const absMemeUrl = (u, path) => {
+        if (u && /^https?:\/\//.test(u)) return u
+        const rel = u || (path ? '/dsh-memes/' + path : '')
+        try { return new URL(rel, window.location.origin).href } catch (e) { return rel }
+      }
+      // 模型常把 “” 抄成 ""；匹配时折叠引号和空白。
+      const foldCaption = (s) => String(s || '').trim()
+        .replace(/[\u201c\u201d\u2018\u2019\u300c\u300d\u300e\u300f«»]/g, '"')
+        .replace(/\s+/g, ' ')
+      const looseCaption = (s) => foldCaption(s).replace(/["'\s]/g, '')
+      const addCaptionKey = (map, key, url) => {
+        const raw = String(key || '').trim()
+        if (!raw) return
+        map.set(raw, url)
+        map.set(foldCaption(raw), url)
+        const loose = looseCaption(raw)
+        if (loose) map.set(loose, url)
+      }
+      const lookupCaption = (desc) => {
+        if (!memeIndex) return null
+        const raw = String(desc || '').trim()
+        return memeIndex.get(raw) || memeIndex.get(foldCaption(raw)) || memeIndex.get(looseCaption(raw)) || null
+      }
+      const loadMemeIndex = () => {
+        if (memeIndex || memeIndexLoading) return
+        memeIndexLoading = true
+        fetch('/dsh-memes-api')
+          .then((r) => r.json())
+          .then((res) => {
+            memeIndex = new Map()
+            for (const row of (res && res.memes) || []) {
+              const url = absMemeUrl(row.url, row.path)
+              addCaptionKey(memeIndex, row.caption, url)
+              addCaptionKey(memeIndex, row.file_name, url)
+              addCaptionKey(memeIndex, row.keywords, url)
+              addCaptionKey(memeIndex, String(row.caption || '').slice(0, 80), url)
+              addCaptionKey(memeIndex, String(row.caption || '').slice(0, 100), url)
+            }
+            decorateMemeText()
+          })
+          .catch(() => { memeIndex = new Map() })
+          .finally(() => { memeIndexLoading = false })
+      }
       const decorateMemeText = () => {
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
           acceptNode(node) {
             const parent = node.parentElement
-            if (!parent || parent.closest('input,textarea,[contenteditable="true"]')) return NodeFilter.FILTER_REJECT
+            if (!parent) return NodeFilter.FILTER_REJECT
+            // 只渲染「对话」气泡。轨迹 / Think / 工具卡 / 输入框保持纯文本。
+            if (!parent.closest('[data-chat-flow]')) return NodeFilter.FILTER_REJECT
+            if (parent.closest('input,textarea,[contenteditable="true"],[data-variant="think"],[data-variant="others"],pre,code')) {
+              return NodeFilter.FILTER_REJECT
+            }
             if (parent.dataset && parent.dataset.memeDecorated) return NodeFilter.FILTER_REJECT
             return MEME_TEXT_RE.test(node.nodeValue || '') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
           },
@@ -629,27 +676,39 @@ window.__ModuleLoader__.load({
         for (const node of nodes) {
           const parent = node.parentElement
           if (!parent || parent.dataset.memeDecorated) continue
+          const text = node.nodeValue || ''
+          MEME_TEXT_RE.lastIndex = 0
+          const matches = []
+          let m
+          while ((m = MEME_TEXT_RE.exec(text))) matches.push(m)
+          if (matches.length === 0) continue
+          const needsLookup = matches.some((hit) => !hit[2])
+          if (needsLookup && !memeIndex) {
+            loadMemeIndex()
+            continue
+          }
           parent.dataset.memeDecorated = '1'
           const frag = document.createDocumentFragment()
           const imgs = []
           let last = 0
-          const text = node.nodeValue || ''
-          MEME_TEXT_RE.lastIndex = 0
-          let m
-          while ((m = MEME_TEXT_RE.exec(text))) {
-            if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)))
-            const img = document.createElement('img')
-            img.src = m[1]
-            img.alt = m[0].slice(0, 60)
-            img.title = m[0].slice(0, 60)
-            img.style.cssText = 'max-width:180px;max-height:180px;border-radius:10px;display:inline-block;vertical-align:middle;margin:2px 0'
-            frag.appendChild(img)
-            imgs.push(img)
-            last = m.index + m[0].length
+          for (const hit of matches) {
+            if (hit.index > last) frag.appendChild(document.createTextNode(text.slice(last, hit.index)))
+            const src = hit[2] || lookupCaption(hit[1])
+            if (src) {
+              const img = document.createElement('img')
+              img.src = src
+              img.alt = hit[0].slice(0, 60)
+              img.title = hit[0].slice(0, 60)
+              img.style.cssText = 'max-width:180px;max-height:180px;border-radius:10px;display:inline-block;vertical-align:middle;margin:2px 0'
+              frag.appendChild(img)
+              imgs.push(img)
+            } else {
+              frag.appendChild(document.createTextNode(hit[0]))
+            }
+            last = hit.index + hit[0].length
           }
           if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)))
           parent.replaceChild(frag, node)
-          // 图片移到消息行顶层(与图片消息一致,不带气泡);气泡链上所有空容器隐藏
           const row = parent.closest('[data-time-hover-root]')
           if (row && imgs.length > 0) {
             for (const img of imgs) row.insertBefore(img, row.firstChild)

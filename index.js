@@ -8,7 +8,7 @@
  * 发送(双通道):
  *   1. QQ 通道:消费 dsh-companion 提供的 `companionQq` 服务(sendImage/isOnline);
  *   2. Web 通道:注册 webServer 前缀路由 `/dsh-memes`,以 HTTP 提供图库图片,
- *      send_meme 返回相对 URL,模型在回复里用 markdown ![](url) 展示。
+ *      模型把 [表情: 描述] 写进回复,前端按描述配图。
  * 两者皆无时不注册 send_meme,避免挂空工具。
  *
  * 管理操作(上传/删除/改元数据)不移植——那是控制台的活,模型只需"选图发送"。
@@ -261,17 +261,41 @@ export function apply(ctx, config) {
     const validTagRe = /^[a-z0-9_-]+$/
     const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 
-    // ---- AI 自动学表情包:模型给图片 URL,下载收录进图库 ----
+    const takeImageRefs = (content, out) => {
+      if (!Array.isArray(content)) return
+      for (const b of content) {
+        if (b && b.type === 'image' && b.attachment) out.push(b.attachment)
+        if (b && b.type === 'tool-result') takeImageRefs(b.content, out)
+      }
+    }
+    /** 会话里用户发过的图片附件。模型 prompt 里没有 attachmentId(图在 UI 里,发给模型的是像素或转写文字),学图时默认取最近一张。 */
+    const userImageRefs = (exec) => {
+      const out = []
+      const agent = exec && exec.agent
+      const inbox = agent && agent.inbox
+      if (inbox) {
+        for (const msg of [...(inbox.nextTurn || []), ...(inbox.nextStep || [])]) takeImageRefs(msg.content, out)
+      }
+      const session = agent && agent.session
+      if (session && typeof session.deriveMessages === 'function') {
+        for (const msg of session.deriveMessages()) {
+          if (msg && msg.role === 'user') takeImageRefs(msg.content, out)
+        }
+      }
+      return out
+    }
+
+    // ---- AI 自动学表情包:用户附件或 URL,下载收录进图库 ----
     ctx.tools.register(defineTool({
       name: 'learn_meme',
       description: '把一张图片收录进表情包图库(自动学图)。' +
         '仅当用户明确要求收藏/收录/保存这张图时使用(如「收藏这个表情」「收进图库」)。' +
         '用户发表情/发图是斗图,不是收藏请求——不要自动收录,正常回应即可。' +
         '插件会自动识别图片内容(分类/描述/关键词)后存入图库;tag/caption/keywords 可选,手动指定优先。' +
-        '支持对话附件 attachmentId 或 imageUrl(图库内 /dsh-memes/... 或任意 http(s) 链接)。',
+        '用户刚发的图片附件:直接调用即可,不必传 attachmentId(id 不会出现在 prompt 里,默认收录最近一张用户图)。也可用 attachmentId 或 http(s) imageUrl。',
       parameters: {
-        attachmentId: { type: 'string', description: '对话中上传的图片附件 id(用户上传图片时给出,如 sha256:...)' },
-        imageUrl: { type: 'string', description: '图片的可下载 URL(/dsh-memes/... 或 http(s)),与 attachmentId 二选一' },
+        attachmentId: { type: 'string', description: '可选。对话附件 id;不传则收录最近一张用户图片' },
+        imageUrl: { type: 'string', description: '可选。图片 http(s) URL,与附件二选一' },
         tag: { type: 'string', description: '手动指定分类,如 angry/happy(可选,默认自动识别)' },
         caption: { type: 'string', description: '手动指定描述(可选,默认自动识别)' },
         keywords: { type: 'string', description: '手动指定搜索关键词,空格分隔(可选,默认自动识别)' },
@@ -286,29 +310,21 @@ export function apply(ctx, config) {
         let tag = typeof args.tag === 'string' ? args.tag.trim().toLowerCase() : ''
         let caption = String(args.caption || '').trim().slice(0, 200)
         let keywords = String(args.keywords || '').trim().slice(0, 200)
-        if (!attachmentId && !imageUrl) return { ok: false, message: '需要 attachmentId(对话里的图片附件)或 imageUrl' }
         try {
           let buf
           let mime
           let fileName
           let ext
-          if (attachmentId) {
-            // 附件模式:从会话消息历史解析图片附件(不依赖任何第三方插件)
-            const session = exec && exec.agent && exec.agent.session
-            let ref = null
-            if (session && typeof session.deriveMessages === 'function') {
-              for (const msg of session.deriveMessages()) {
-                const blocks = (msg && msg.content) || []
-                for (const b of blocks) {
-                  if (b && b.type === 'image' && b.attachment && String(b.attachment.attachmentId) === attachmentId) {
-                    ref = b.attachment
-                    break
-                  }
-                }
-                if (ref) break
-              }
+          if (!imageUrl) {
+            const refs = userImageRefs(exec)
+            const ref = attachmentId
+              ? refs.find((r) => String(r.attachmentId) === attachmentId)
+              : refs[refs.length - 1]
+            if (!ref) {
+              return { ok: false, message: attachmentId
+                ? '找不到附件 ' + attachmentId + '(必须是本次对话上传的图片)'
+                : '对话里没有用户图片附件' }
             }
-            if (!ref) return { ok: false, message: '找不到附件 ' + attachmentId + '(必须是本次对话上传的图片)' }
             const stored = await ctx.get('attachments').readImage(ref)
             buf = stored.data
             mime = stored.ref.mediaType

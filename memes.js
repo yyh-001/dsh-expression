@@ -1,15 +1,8 @@
 /**
  * 表情包存储与搜索(dsh-expression 插件)。
  *
- * MemesStore 移植自 selfloom src/memes.ts:索引为 SQLite(index.db),
- * Node 侧用内置 node:sqlite 只读打开,数据零迁移(直接读 selfloom 的库);
- * 搜索用 bigram Dice 相似度 + 口语同义词逐词兜底。
- * send_meme 工具:QQ 通道可用时两步式(action=search 翻候选 → action=send 投递);
- * 纯 Web 模式只保留 search——候选自带白名单真实 URL,模型挑一张直接
- * 用 markdown ![](url) 嵌进回复,不再有冗余的 send 动作。无命中不硬发,
- * 返回分类建议。
- *
- * 管理操作(上传/删除/改元数据)不移植——那是控制台/管理面板的事。
+ * 模型侧:先按 6 个情绪桶选 tag,系统从该桶随机抽 5 张(带 caption),
+ * 模型看描述觉得贴再发。管理面板仍可按 caption 子串筛选。
  */
 import { DatabaseSync } from 'node:sqlite'
 import { join, resolve, sep } from 'node:path'
@@ -22,68 +15,74 @@ export function defaultMemeRoot() {
   return fileURLToPath(new URL('./memes/official-001', import.meta.url))
 }
 
-/** 字符 bigram 集合(Dice 相似度搜索,与 selfloom 同款)。 */
-function bigramSet(text) {
-  const t = [...String(text).toLowerCase()].filter((c) => /[a-z0-9]|\u4e00-\u9fff/.test(c))
-  const set = new Set()
-  for (let i = 0; i < t.length - 1; i++) set.add(t[i] + t[i + 1])
-  return set
+/** 模型只认这 6 个情绪桶;磁盘上仍是细 tag(路径不改)。 */
+const MOODS = {
+  happy: ['happy', 'like', 'meow', 'givemoney', 'color'],
+  angry: ['angry', 'fool', 'baka'],
+  sad: ['sad', 'sigh'],
+  shy: ['shy'],
+  confused: ['confused', 'surprised', 'see'],
+  daily: ['sleep', 'morning', 'work', 'cpu', 'reply'],
 }
 
-function diceSimilarity(a, b) {
-  let inter = 0
-  for (const item of a) if (b.has(item)) inter += 1
-  return inter === 0 ? 0 : (2 * inter) / (a.size + b.size)
+const MOOD_WORDS = {
+  happy: '开心 高兴 兴奋 喜欢 卖萌 可爱 比心 哈哈 欢迎',
+  angry: '生气 愤怒 暴躁 笨蛋 傻瓜 嫌弃 逮',
+  sad: '难过 哭 委屈 叹气 无语 求饶 怂',
+  shy: '害羞 腼腆 脸红 花痴',
+  confused: '困惑 疑惑 惊讶 问号 懵',
+  daily: '困 睡觉 早上好 打招呼 你好 上班 下班 摸鱼 工作 熬夜',
 }
 
-function searchMemeRows(rows, q) {
-  const qSet = bigramSet(q)
-  if (qSet.size < 2) {
-    return rows.filter((m) => String(m.caption ?? '').toLowerCase().includes(q) || String(m.keywords ?? '').toLowerCase().includes(q))
+export function moodNames() {
+  return Object.keys(MOODS)
+}
+
+function fineTagsFor(tag) {
+  const t = String(tag || '').trim().toLowerCase()
+  if (!t) return null
+  if (MOODS[t]) return MOODS[t]
+  for (const fine of Object.values(MOODS)) {
+    if (fine.includes(t)) return [t]
   }
-  return rows
-    .map((m) => {
-      const score = Math.max(
-        diceSimilarity(qSet, bigramSet(m.caption ?? '')),
-        diceSimilarity(qSet, bigramSet(m.keywords ?? '')),
-      )
-      return { m, score }
-    })
-    .filter((x) => x.score > 0.1)
-    .sort((a, b) => b.score - a.score)
-    .map((x) => x.m)
+  return [t]
 }
 
-/** 口语词 → 图库关键词扩展(搜索兜底,移植自 memes.ts)。 */
-const QUERY_SYNONYMS = {
-  摸鱼: '摸鱼 上班 工作 下班 偷懒 躺',
-  上班: '上班 工作',
-  工作: '工作 上班 加班',
-  下班: '下班 工作 摸鱼',
-  困: '困 睡觉 熬夜 犯困',
-  睡觉: '睡觉 困 熬夜',
-  熬夜: '熬夜 困 睡觉',
-  生气: '生气 愤怒 暴躁 无语',
-  无语: '无语 叹气 翻白眼',
-  开心: '开心 高兴 兴奋',
-  害怕: '害怕 惊恐 慌张',
-  无聊: '无聊 没意思 发呆 摸鱼',
-  尴尬: '尴尬 无语 捂脸',
+const MOOD_DICT =
+  'happy 开心(卖萌/可爱/喜欢) / angry 生气 / sad 难过(无语/求饶) / shy 害羞 / confused 困惑惊讶 / daily 日常(睡觉/上班/早上好)'
+
+function moodsFromQuery(text) {
+  const hit = []
+  for (const [mood, words] of Object.entries(MOOD_WORDS)) {
+    if (words.split(/\s+/).some((w) => w && text.includes(w))) hit.push(mood)
+  }
+  return hit
 }
 
-/** 候选交错:每分类最多 2 张,避免同类扎堆(最多 MAX_CANDIDATES 张)。 */
-function interleaveCandidates(hits, max) {
-  const perTag = new Map()
-  const out = []
-  for (const m of hits) {
-    if (out.length >= max) break
-    const used = perTag.get(m.tag) || 0
-    if (used < 2) {
-      perTag.set(m.tag, used + 1)
-      out.push(m)
+/** tag 优先;否则用 query 里的口语词推断情绪。 */
+export function resolveMood(tag, query) {
+  const t = String(tag || '').trim().toLowerCase()
+  if (t) {
+    if (MOODS[t]) return t
+    for (const [mood, fine] of Object.entries(MOODS)) {
+      if (fine.includes(t)) return mood
     }
   }
-  return out
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return null
+  if (MOODS[q]) return q
+  return moodsFromQuery(q)[0] || null
+}
+
+function pickRandom(rows, n) {
+  const copy = rows.slice()
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = copy[i]
+    copy[i] = copy[j]
+    copy[j] = tmp
+  }
+  return copy.slice(0, n)
 }
 
 export class MemesStore {
@@ -96,37 +95,32 @@ export class MemesStore {
     this.db = new DatabaseSync(indexPath, { readOnly: true })
   }
 
-  /** 列表情包:可过滤 tag,支持 caption/keywords 搜索(含同义词逐词兜底)。 */
+  /** 列表情包:tag 为情绪桶或细分类;query 只做 caption/keywords 子串(管理面板用)。 */
   list(tag, query) {
     const rows = this.db
       .prepare('SELECT path, tag, file_name, caption, COALESCE(keywords, \'\') AS keywords FROM memes')
       .all()
-    const tags = [...new Set(rows.map((r) => r.tag))].sort()
+    const tags = moodNames()
     let memes = rows
-    if (tag) {
-      memes = memes.filter((m) => m.tag === String(tag).toLowerCase())
-    }
-    if (query && String(query).trim()) {
-      // 同义词逐词展开:原词零命中才尝试扩展词,避免静默回退全量。
-      const base = String(query).trim().toLowerCase()
-      const expansions = Object.entries(QUERY_SYNONYMS)
-        .filter(([word]) => base.includes(word))
-        .flatMap(([, words]) => words.split(/\s+/).filter(Boolean))
-      const candidates = [base, ...expansions]
-      const pool = memes
-      for (const q of candidates) {
-        const hits = searchMemeRows(pool, q)
-        if (hits.length > 0) {
-          memes = hits
-          break
-        }
-      }
-      if (memes === rows) {
-        // 所有候选词都零命中:返回空,绝不回退全量第一张硬发。
-        memes = []
-      }
+    const fine = fineTagsFor(tag)
+    if (fine) memes = memes.filter((m) => fine.includes(m.tag))
+    const q = query && String(query).trim().toLowerCase()
+    if (q) {
+      const tokens = q.split(/\s+/).filter(Boolean)
+      memes = memes.filter((m) => {
+        const hay = (m.tag + ' ' + (m.caption ?? '') + ' ' + (m.keywords ?? '')).toLowerCase()
+        return tokens.some((t) => hay.includes(t))
+      })
     }
     return { memes, tags }
+  }
+
+  /** 按情绪取池,随机抽 n 张给模型看 caption。 */
+  sampleMood(tag, query, n = 5) {
+    const mood = resolveMood(tag, query)
+    if (!mood) return { mood: null, memes: [], tags: moodNames() }
+    const { memes } = this.list(mood)
+    return { mood, memes: pickRandom(memes, n), tags: moodNames() }
   }
 
   /** 把索引内相对路径解析为绝对路径(不允许逃出图库根)。 */
@@ -146,9 +140,9 @@ export class MemesStore {
  * 注册 send_meme 工具。
  *
  * 两种模式:
- * - Web 模式(无 QQ 通道,有 urlPrefix):只保留 search——返回的都是白名单
- *   校验过的真实 URL,模型挑一张直接用 markdown ![](url) 嵌进回复即可,
- *   不需要冗余的 send 动作(历史形态:两步式里 send 在 Web 下只是重复校验);
+ * - Web 模式(无 QQ 通道,有 urlPrefix):只保留 search——随机抽候选,
+ *   模型挑一张把 [表情: 描述] 写进回复,前端按描述配图,
+ *   不需要冗余的 send 动作;
  * - QQ 模式(companionQq 可用):两步式,action=send 才是真正的投递动作。
  *
  * @param {object} ctx 插件上下文
@@ -157,31 +151,46 @@ export class MemesStore {
  *   (dsh-companion 的 companionQq.sendImage);传 null 时走 web 模式。
  * @param {string | null} urlPrefix webServer 图片路由前缀(如 '/dsh-memes'),无则 null
  */
+function clampLimit(n) {
+  const x = typeof n === 'number' ? n : Number(n)
+  if (!Number.isFinite(x)) return 8
+  return Math.max(1, Math.min(20, Math.floor(x)))
+}
+
 export function registerSendMemeTool(ctx, memes, sendImage, urlPrefix = null) {
-  const MAX_CANDIDATES = 10
   const webMode = !sendImage && !!urlPrefix
 
   const parameters = {
-    query: { type: 'string', description: '描述想要的表情(情绪/内容/配文),如「无语」「下班」' },
-    tag: { type: 'string', description: '按分类筛选(angry/happy/sleep/…)' },
+    tag: {
+      type: 'string',
+      description: '先选情绪(必填优先): ' + MOOD_DICT + '。没特定情绪用 happy。',
+    },
+    query: {
+      type: 'string',
+      description: '可选。没传 tag 时用来推断情绪(如「害羞」「生气」),不要一长串。',
+    },
+    limit: {
+      type: 'number',
+      description: '本次随机抽几张候选(1-20,默认 8)。拿不准就多抽点;不满意再 search 换一批。',
+    },
   }
   if (!webMode) {
     parameters.action = {
       type: 'string',
       enum: ['search', 'send'],
-      description: 'search: 翻图库看候选(含描述); send: 发送 search 挑中的 path',
+      description: 'search: 按情绪随机抽候选; send: 发送挑中的 path',
     }
     parameters.path = { type: 'string', description: 'send 时要发的图路径(来自 search 候选列表)' }
   }
 
   ctx.tools.register(defineTool({
     name: 'send_meme',
-    description: 'Send an image meme (表情包) to the chat. ' +
+    description: '发一张表情包。流程:根据对话选一个情绪 tag → 系统从该情绪随机抽若干张(带 caption,数量用 limit 自己定) → 看描述觉得贴就发;不满意就再 search 同一 tag(会换一批),还是不行再换情绪或回文字。' +
+      '情绪字典: ' + MOOD_DICT + '。' +
       (webMode
-        ? 'search 翻图库看候选(每张带描述 caption 和 url),挑最贴题的一张,把它的 url 用 markdown 图片语法 ![](url) 写进回复正文展示给用户。'
-        : '两步式:先 action=search 翻图库看候选(每张带描述 caption),挑最贴题的一张用 action=send + path 发出;The image is delivered through the chat channel automatically.') +
-      'query 传情绪/内容口语描述(如「无语」「下班」「生气」「摸鱼」),tag 传分类(angry/happy/sad/…)精确筛。' +
-      '气氛对了就主动发,别硬凑;没命中就回文字、列分类建议让用户换词,绝不硬发;发完保持简短,让图自己说话。',
+        ? '挑中后把 [表情: 描述] 原样写进回复(不要带网址)。前端按描述配图。'
+        : '两步:search 看候选,再用 send + path 发出。') +
+      '气氛对了就主动发;发完短接,让图自己说话。',
     parameters,
     output: {
       schema: { type: 'json' },
@@ -192,11 +201,11 @@ export function registerSendMemeTool(ctx, memes, sendImage, urlPrefix = null) {
       const query = typeof args.query === 'string' ? args.query.trim() : ''
       const tag = typeof args.tag === 'string' ? args.tag.trim().toLowerCase() : ''
       const path = typeof args.path === 'string' ? args.path.trim() : ''
+      const limit = clampLimit(args.limit)
 
-      // send:精确发送 search 挑中的一张(仅 QQ 模式)
       if (action === 'send') {
         if (!path) {
-          return { ok: false, message: 'send 需要 path——先 action=search 看候选,再挑一张发' }
+          return { ok: false, message: 'send 需要 path——先 search 看候选,再挑一张发' }
         }
         let absolute
         try {
@@ -215,34 +224,36 @@ export function registerSendMemeTool(ctx, memes, sendImage, urlPrefix = null) {
         return { ok: false, message: '没有可用发送通道: ' + absolute }
       }
 
-      // search:列出候选,让模型自己挑(像翻收藏)
-      const { memes: hits, tags } = memes.list(tag, query)
-      if (hits.length === 0) {
+      const { mood, memes: candidates, tags } = memes.sampleMood(tag, query, limit)
+      if (!mood) {
         return {
           ok: false,
-          message: '没找到匹配的表情包' + (query ? '（' + query + '）' : '') +
-            '。图库分类: ' + tags.join('/') + ' —— 回文字,从这些分类里选一个贴切的词重试,别硬发',
+          message: '先选一个情绪 tag 再搜。字典: ' + MOOD_DICT,
         }
       }
-      const candidates = interleaveCandidates(hits, MAX_CANDIDATES)
+      if (candidates.length === 0) {
+        return {
+          ok: false,
+          message: '情绪「' + mood + '」下没有图。换一个: ' + MOOD_DICT,
+        }
+      }
       const lines = candidates.map((m, i) => {
-        const caption = (m.caption || m.file_name).slice(0, 100)
-        return (i + 1) + '. path=' + m.path + ' | [' + m.tag + '] ' + caption +
-          (urlPrefix ? ' | ' + urlPrefix + '/' + m.path : '')
+        const caption = (m.caption || m.file_name).slice(0, 80)
+        return webMode
+          ? (i + 1) + '. [表情: ' + caption + ']'
+          : (i + 1) + '. path=' + m.path + ' | [' + m.tag + '] ' + caption
       })
       return {
         ok: true,
-        hits: candidates.map((m) => ({
-          path: m.path,
-          tag: m.tag,
-          caption: m.caption,
-          url: urlPrefix ? urlPrefix + '/' + m.path : null,
-        })),
+        mood,
+        hits: webMode
+          ? candidates.map((m) => ({ caption: (m.caption || m.file_name).slice(0, 80) }))
+          : candidates.map((m) => ({ path: m.path, tag: m.tag, caption: m.caption })),
         tags,
-        message: '候选 ' + candidates.length + ' 张(按分类错开,共命中 ' + hits.length + ' 张),' +
+        message: '情绪 ' + mood + ' 随机 ' + candidates.length + ' 张。看 caption 贴就发;不满意再 search 同一 tag 换一批(可加大 limit)。' +
           (webMode
-            ? '挑最贴题的一张,把它的 url 用 markdown 图片语法 ![](url) 写进回复正文展示,发完不啰嗦'
-            : '挑最贴题的一张用 action=send + path 发出') + ':\n' + lines.join('\n'),
+            ? '发图:把下面某一行的 [表情: ...] 整段原样写进回复(可加一两句文字,不要加网址)。'
+            : '用 send + path 发出。') + '\n' + lines.join('\n'),
       }
     },
   }))

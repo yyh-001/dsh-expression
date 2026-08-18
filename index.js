@@ -460,10 +460,28 @@ export function apply(ctx, config) {
       async handler(req, res) {
         if (req.method === 'GET') {
           const u = new URL(req.url || '/', 'http://localhost')
-          const { memes: rows, tags } = memes.list(u.searchParams.get('tag') || undefined, u.searchParams.get('q') || undefined)
-          const all = memes.list().memes.length
+          const packs = listAllPacks()
+          const activeId = readSettings().packId
+            || ((packs.find((p) => resolve(p.path) === resolve(memes.root)) || {}).id || '')
+          const packId = u.searchParams.get('packId') || activeId
+          const pack = packs.find((p) => p.id === packId)
+          let rows = []
+          let tags = []
+          if (pack) {
+            try {
+              const r = new MemesStore(pack.path).list(u.searchParams.get('tag') || undefined, u.searchParams.get('q') || undefined)
+              rows = r.memes
+              tags = r.tags
+            } catch { /* 坏库/缺索引 → 空列表 */ }
+          } else {
+            const r = memes.list(u.searchParams.get('tag') || undefined, u.searchParams.get('q') || undefined)
+            rows = r.memes
+            tags = r.tags
+          }
           json(res, {
-            ok: true, total: all, tags,
+            ok: true, total: rows.length, tags,
+            packId: pack ? pack.id : activeId,
+            packs: packs.map((p) => ({ id: p.id, name: p.name, count: p.count })),
             memes: rows.map((m) => ({ ...m, url: ROUTE + '/' + m.path })),
           })
           return

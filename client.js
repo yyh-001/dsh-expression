@@ -615,23 +615,29 @@ window.__ModuleLoader__.load({
       const actions = props.inputActions
       const open = React.useSyncExternalStore(store.subscribe, store.get)
       const [memes, setMemes] = React.useState([])
-      const [activeTag, setActiveTag] = React.useState('') // '' = 全部组
+      const [packs, setPacks] = React.useState([]) // [{id,name,count}] 可切换的表情包组
+      const [packId, setPackId] = React.useState('') // '' = 跟随当前激活图库
 
       React.useEffect(() => {
         if (!open) return
         let alive = true
-        fetch('/dsh-memes-api')
+        const qs = new URLSearchParams()
+        if (packId) qs.set('packId', packId)
+        fetch('/dsh-memes-api?' + qs.toString())
           .then((r) => r.json())
           .then((res) => {
             if (!alive || !res || !res.ok) return
-            const list = res.memes || []
-            setMemes(list)
-            // 当前组在数据里不存在时(切换图库后)回退「全部」
-            setActiveTag((cur) => (cur && !list.some((m) => m.tag === cur) ? '' : cur))
+            setPacks(res.packs || [])
+            setMemes(res.memes || [])
+            // 首次打开:锚定当前激活图库;切包后当前包不存在时回退激活包
+            setPackId((cur) => {
+              const valid = (res.packs || []).some((p) => p.id === cur)
+              return cur && valid ? cur : (res.packId || '')
+            })
           })
           .catch(() => {})
         return () => { alive = false }
-      }, [open])
+      }, [open, packId])
 
       // 点外部(非面板、非 😊 按钮)自动收起。
       React.useEffect(() => {
@@ -662,16 +668,8 @@ window.__ModuleLoader__.load({
         store.set(false)
       }
 
-      // 组 tab:全部 + 各分类(保持库内顺序)
-      const tagList = []
-      const seen = new Set()
-      for (const m of memes) {
-        if (!m.tag || seen.has(m.tag)) continue
-        seen.add(m.tag)
-        tagList.push(m.tag)
-      }
-      const shown = activeTag ? memes.filter((m) => m.tag === activeTag) : memes
-      const cells = shown.map((m) => h('div', {
+      // 表情包组 tab:大肥鱼 / 官方 / 导入的包,点选即切换数据源
+      const cells = memes.map((m) => h('div', {
         key: m.path, className: 'mp-cell', title: m.caption || m.file_name, onClick: () => send(m),
         style: {
           width: '74px', height: '74px',
@@ -684,8 +682,13 @@ window.__ModuleLoader__.load({
 
       return h('div', { className: 'meme-picker', onClick: (e) => e.stopPropagation() },
         h('div', { className: 'mp-tabs' },
-          h('button', { type: 'button', className: 'mp-tag' + (activeTag === '' ? ' on' : ''), onClick: () => setActiveTag('') }, '全部'),
-          tagList.map((t) => h('button', { type: 'button', key: t, className: 'mp-tag' + (t === activeTag ? ' on' : ''), onClick: () => setActiveTag(t) }, tagZh(t))),
+          packs.length === 0
+            ? h('div', { className: 'mp-empty', style: { padding: '4px 0' } }, '加载中…')
+            : packs.map((p) => h('button', {
+              type: 'button', key: p.id,
+              className: 'mp-tag' + (p.id === packId ? ' on' : ''),
+              onClick: () => setPackId(p.id),
+            }, p.name + ' (' + (p.count || 0) + ')')),
         ),
         memes.length === 0
           ? h('div', { className: 'mp-empty' }, '没有匹配的表情包')

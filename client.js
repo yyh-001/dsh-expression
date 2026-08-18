@@ -114,6 +114,7 @@ window.__ModuleLoader__.load({
       const [browseMode, setBrowseMode] = React.useState('packsDir')
       const [browseList, setBrowseList] = React.useState(null)
       const [browseErr, setBrowseErr] = React.useState('')
+      const [companionPrompt, setCompanionPrompt] = React.useState('')
       const applyRoot = (res) => {
         if (!res || !res.ok) return
         setMemeRoot(res.memeRoot || '')
@@ -122,6 +123,20 @@ window.__ModuleLoader__.load({
         setPacks(Array.isArray(res.packs) ? res.packs : [])
         setPacksDir(res.packsDir || '')
         setPacksDirInput(res.packsDir || '')
+        setCompanionPrompt(res.companionPrompt || '')
+      }
+      const onSaveCompanionPrompt = async () => {
+        try {
+          const res = await apiPost({ op: 'setCompanionPrompt', text: companionPrompt })
+          if (res && res.ok) {
+            applyRoot(res)
+            setRootNotice(res.message || '已保存')
+          } else {
+            setRootNotice('保存失败: ' + (res && res.error || ''))
+          }
+        } catch (e) {
+          setRootNotice('保存失败')
+        }
       }
       React.useEffect(() => {
         apiPost({ op: 'getMemeRoot' }).then(applyRoot).catch(() => {})
@@ -507,6 +522,18 @@ window.__ModuleLoader__.load({
           h('input', { type: 'text', value: packsDirInput, onChange: (e) => setPacksDirInput(e.target.value), placeholder: '自动扫描含 index.db 的子文件夹', style: { flex: 1, minWidth: 160 } }),
           h('button', { onClick: () => onPickDir('packsDir') }, '选择目录'),
           h('button', { onClick: () => onSavePacksDir() }, '保存'),
+        ),
+        h('div', { className: 'section-title' }, '陪伴提示词'),
+        h('textarea', {
+          value: companionPrompt,
+          onChange: (e) => setCompanionPrompt(e.target.value),
+          placeholder: '留空 = 使用内置默认(主动斗图规则)',
+          rows: 4,
+          style: { boxSizing: 'border-box', width: '100%', minHeight: 84, fontFamily: 'inherit', fontSize: 12, lineHeight: 1.6, background: 'var(--dsw-alias-bg-layer-2)', color: 'var(--dsw-alias-label-primary)', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 8, padding: 8 },
+        }),
+        h('div', { className: 'row' },
+          h('button', { className: 'btn-primary', onClick: onSaveCompanionPrompt }, '保存提示词'),
+          h('button', { onClick: () => setCompanionPrompt('') }, '恢复默认'),
         ),
         h('div', { className: 'row' },
           h('button', { onClick: () => { window.location.href = '/dsh-memes-export' } }, '导出图库'),

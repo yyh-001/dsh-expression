@@ -383,6 +383,38 @@ window.__ModuleLoader__.load({
       ))
 
       return h('div', { className: 'meme-panel' },
+        h('div', { className: 'section-title' }, '当前图库'),
+        h('div', { className: 'row', style: { width: '100%' } },
+          h('div', { className: 'pack-dd' },
+            h('button', {
+              type: 'button',
+              className: 'pack-dd-btn',
+              onClick: () => setPackOpen((v) => !v),
+            },
+              h('span', null, (() => {
+                const cur = packs.find((p) => p.id === packId)
+                return cur ? (cur.name + ' (' + (cur.count || 0) + ' 张)') : (packs.length ? '选择图库' : '暂无图库')
+              })()),
+              h('span', { className: 'caret' }, packOpen ? '▲' : '▼'),
+            ),
+            packOpen ? h('div', { className: 'pack-dd-menu' },
+              packs.length === 0
+                ? h('div', { className: 'empty', style: { padding: 12 } }, '还没有可切换的图库')
+                : packs.map((p) => h('button', {
+                  type: 'button',
+                  key: p.id,
+                  className: 'pack-dd-item' + (p.id === packId ? ' on' : ''),
+                  onClick: () => onSetPack(p.id),
+                },
+                  h('span', null, p.name),
+                  h('span', { className: 'hint' },
+                    (p.count || 0) + ' 张' +
+                    (p.source === 'bundled' ? '' : p.source === 'user' ? ' · 导入' : ' · 自定义')),
+                )),
+            ) : null,
+          ),
+        ),
+        memeRoot ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', wordBreak: 'break-all' } }, memeRoot) : null,
         h('div', { className: 'section-title' }, '图库 (' + total + ' 张)'),
         h('div', { className: 'row' },
           searchInput,
@@ -469,39 +501,7 @@ window.__ModuleLoader__.load({
           ),
         ) : null,
         fileInput,
-        // 底部:图库管理(已切换图库/扫描目录/导入导出)
-        h('div', { className: 'section-title' }, '当前图库'),
-        h('div', { className: 'row', style: { width: '100%' } },
-          h('div', { className: 'pack-dd' },
-            h('button', {
-              type: 'button',
-              className: 'pack-dd-btn',
-              onClick: () => setPackOpen((v) => !v),
-            },
-              h('span', null, (() => {
-                const cur = packs.find((p) => p.id === packId)
-                return cur ? (cur.name + ' (' + (cur.count || 0) + ' 张)') : (packs.length ? '选择图库' : '暂无图库')
-              })()),
-              h('span', { className: 'caret' }, packOpen ? '▲' : '▼'),
-            ),
-            packOpen ? h('div', { className: 'pack-dd-menu' },
-              packs.length === 0
-                ? h('div', { className: 'empty', style: { padding: 12 } }, '还没有可切换的图库')
-                : packs.map((p) => h('button', {
-                  type: 'button',
-                  key: p.id,
-                  className: 'pack-dd-item' + (p.id === packId ? ' on' : ''),
-                  onClick: () => onSetPack(p.id),
-                },
-                  h('span', null, p.name),
-                  h('span', { className: 'hint' },
-                    (p.count || 0) + ' 张' +
-                    (p.source === 'bundled' ? '' : p.source === 'user' ? ' · 导入' : ' · 自定义')),
-                )),
-            ) : null,
-          ),
-        ),
-        memeRoot ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', wordBreak: 'break-all' } }, memeRoot) : null,
+        // 底部:扫描目录 / 导入导出
         h('div', { className: 'section-title' }, '扫描目录'),
         h('div', { className: 'row', style: { width: '100%' } },
           h('input', { type: 'text', value: packsDirInput, onChange: (e) => setPacksDirInput(e.target.value), placeholder: '自动扫描含 index.db 的子文件夹', style: { flex: 1, minWidth: 160 } }),

@@ -114,7 +114,10 @@ window.__ModuleLoader__.load({
       const [browseMode, setBrowseMode] = React.useState('packsDir')
       const [browseList, setBrowseList] = React.useState(null)
       const [browseErr, setBrowseErr] = React.useState('')
-      const [companionPrompt, setCompanionPrompt] = React.useState('')
+      const [companionPrompt, setCompanionPrompt] = React.useState('') // 用户自定义覆盖(空=默认)
+      const [defaultPrompt, setDefaultPrompt] = React.useState('') // 内置默认提示词
+      const [promptOpen, setPromptOpen] = React.useState(false)
+      const [promptDraft, setPromptDraft] = React.useState('') // 弹窗内草稿
       const applyRoot = (res) => {
         if (!res || !res.ok) return
         setMemeRoot(res.memeRoot || '')
@@ -124,12 +127,14 @@ window.__ModuleLoader__.load({
         setPacksDir(res.packsDir || '')
         setPacksDirInput(res.packsDir || '')
         setCompanionPrompt(res.companionPrompt || '')
+        setDefaultPrompt(res.defaultCompanionPrompt || '')
       }
       const onSaveCompanionPrompt = async () => {
         try {
-          const res = await apiPost({ op: 'setCompanionPrompt', text: companionPrompt })
+          const res = await apiPost({ op: 'setCompanionPrompt', text: promptDraft })
           if (res && res.ok) {
             applyRoot(res)
+            setPromptOpen(false)
             setRootNotice(res.message || '已保存')
           } else {
             setRootNotice('保存失败: ' + (res && res.error || ''))
@@ -516,6 +521,25 @@ window.__ModuleLoader__.load({
           ),
         ) : null,
         fileInput,
+        // 陪伴提示词编辑弹窗:基于默认提示词修改,留空/恢复默认 = 内置规则
+        promptOpen ? h('div', { className: 'meme-modal-mask', onClick: () => setPromptOpen(false) },
+          h('div', { className: 'meme-modal', style: { width: 460 }, onClick: (e) => e.stopPropagation() },
+            h('h3', null, '陪伴提示词(注入模型)'),
+            h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+              '在默认提示词基础上修改,保存后下一条消息生效;留空 = 使用内置默认。'),
+            h('textarea', {
+              value: promptDraft,
+              onChange: (e) => setPromptDraft(e.target.value),
+              rows: 7,
+              style: { boxSizing: 'border-box', width: '100%', minHeight: 140, fontFamily: 'inherit', fontSize: 12, lineHeight: 1.6, background: 'var(--dsw-alias-bg-layer-2)', color: 'var(--dsw-alias-label-primary)', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 8, padding: 8 },
+            }),
+            h('div', { className: 'modal-acts' },
+              h('button', { onClick: () => { setPromptDraft(defaultPrompt); setRootNotice('已重置为默认,点击保存生效') } }, '恢复默认'),
+              h('button', { onClick: () => setPromptOpen(false) }, '取消'),
+              h('button', { className: 'btn-primary', onClick: onSaveCompanionPrompt }, '保存'),
+            ),
+          ),
+        ) : null,
         // 底部:扫描目录 / 导入导出
         h('div', { className: 'section-title' }, '扫描目录'),
         h('div', { className: 'row', style: { width: '100%' } },
@@ -524,16 +548,10 @@ window.__ModuleLoader__.load({
           h('button', { onClick: () => onSavePacksDir() }, '保存'),
         ),
         h('div', { className: 'section-title' }, '陪伴提示词'),
-        h('textarea', {
-          value: companionPrompt,
-          onChange: (e) => setCompanionPrompt(e.target.value),
-          placeholder: '留空 = 使用内置默认(主动斗图规则)',
-          rows: 4,
-          style: { boxSizing: 'border-box', width: '100%', minHeight: 84, fontFamily: 'inherit', fontSize: 12, lineHeight: 1.6, background: 'var(--dsw-alias-bg-layer-2)', color: 'var(--dsw-alias-label-primary)', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 8, padding: 8 },
-        }),
         h('div', { className: 'row' },
-          h('button', { className: 'btn-primary', onClick: onSaveCompanionPrompt }, '保存提示词'),
-          h('button', { onClick: () => setCompanionPrompt('') }, '恢复默认'),
+          h('button', { className: 'btn-primary', onClick: () => { setPromptDraft(companionPrompt || defaultPrompt); setPromptOpen(true) } }, '编辑提示词'),
+          h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } },
+            companionPrompt ? '已自定义' : '使用默认'),
         ),
         h('div', { className: 'row' },
           h('button', { onClick: () => { window.location.href = '/dsh-memes-export' } }, '导出图库'),

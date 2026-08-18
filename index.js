@@ -284,6 +284,7 @@ export function apply(ctx, config) {
         packsDir: packsDirNow(),
         packs,
         companionPrompt: readSettings().companionPrompt || '',
+        defaultCompanionPrompt: DEFAULT_COMPANION_PROMPT,
         configured: !!(s.memeRoot || s.packId),
       }
     }

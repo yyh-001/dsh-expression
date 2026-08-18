@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yyh-001/dsh-meme/main/docs/hero.jpg?v=2" alt="dsh-meme — 找得到、发得出" width="100%" />
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-meme/main/docs/hero.jpg?v=3" alt="dsh-meme — 找得到、发得出" width="100%" />
 </p>
 
 <p align="center">

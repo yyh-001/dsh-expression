@@ -383,60 +383,12 @@ window.__ModuleLoader__.load({
       ))
 
       return h('div', { className: 'meme-panel' },
-        h('div', { className: 'section-title' }, '当前图库'),
-        h('div', { className: 'row', style: { width: '100%' } },
-          h('div', { className: 'pack-dd' },
-            h('button', {
-              type: 'button',
-              className: 'pack-dd-btn',
-              onClick: () => setPackOpen((v) => !v),
-            },
-              h('span', null, (() => {
-                const cur = packs.find((p) => p.id === packId)
-                return cur ? (cur.name + ' (' + (cur.count || 0) + ' 张)') : (packs.length ? '选择图库' : '暂无图库')
-              })()),
-              h('span', { className: 'caret' }, packOpen ? '▲' : '▼'),
-            ),
-            packOpen ? h('div', { className: 'pack-dd-menu' },
-              packs.length === 0
-                ? h('div', { className: 'empty', style: { padding: 12 } }, '还没有可切换的图库')
-                : packs.map((p) => h('button', {
-                  type: 'button',
-                  key: p.id,
-                  className: 'pack-dd-item' + (p.id === packId ? ' on' : ''),
-                  onClick: () => onSetPack(p.id),
-                },
-                  h('span', null, p.name),
-                  h('span', { className: 'hint' },
-                    (p.count || 0) + ' 张' +
-                    (p.source === 'bundled' ? '' : p.source === 'user' ? ' · 导入' : ' · 自定义')),
-                )),
-            ) : null,
-          ),
-        ),
-        memeRoot ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', wordBreak: 'break-all' } }, memeRoot) : null,
-        h('div', { className: 'section-title' }, '扫描目录'),
-        h('div', { className: 'row', style: { width: '100%' } },
-          h('input', { type: 'text', value: packsDirInput, onChange: (e) => setPacksDirInput(e.target.value), placeholder: '自动扫描含 index.db 的子文件夹', style: { flex: 1, minWidth: 160 } }),
-          h('button', { onClick: () => onPickDir('packsDir') }, '选择目录'),
-          h('button', { onClick: () => onSavePacksDir() }, '保存'),
-        ),
-        h('div', { className: 'row' },
-          h('button', { onClick: () => { window.location.href = '/dsh-memes-export' } }, '导出图库'),
-          h('button', { onClick: () => importFileRef.current && importFileRef.current.click() }, '导入图库'),
-          h('button', { onClick: () => onPickDir('memeRoot') }, '打开其他目录'),
-          h('input', { ref: importFileRef, type: 'file', accept: '.zip,application/zip', style: { display: 'none' }, onChange: onImportPack }),
-        ),
-        rootNotice ? h('div', { className: 'notice' }, rootNotice) : null,
-        h('div', { className: 'row' },
-          h('button', { className: 'btn-primary', onClick: () => setUploadOpen(true) }, '上传表情包'),
-        ),
         h('div', { className: 'section-title' }, '图库 (' + total + ' 张)'),
         h('div', { className: 'row' },
           searchInput,
+          h('button', { className: 'btn-primary', onClick: () => setUploadOpen(true) }, '上传表情包'),
           tagSelect,
           h('button', { onClick: () => load(q, tagFilter), disabled: busy }, '搜索'),
-          h('button', { onClick: () => { setQ(''); setTagFilter(''); load('', '') } }, '重置'),
         ),
         notice ? h('div', { className: 'notice' }, notice) : null,
         memes.length === 0 && !busy
@@ -517,6 +469,52 @@ window.__ModuleLoader__.load({
           ),
         ) : null,
         fileInput,
+        // 底部:图库管理(已切换图库/扫描目录/导入导出)
+        h('div', { className: 'section-title' }, '当前图库'),
+        h('div', { className: 'row', style: { width: '100%' } },
+          h('div', { className: 'pack-dd' },
+            h('button', {
+              type: 'button',
+              className: 'pack-dd-btn',
+              onClick: () => setPackOpen((v) => !v),
+            },
+              h('span', null, (() => {
+                const cur = packs.find((p) => p.id === packId)
+                return cur ? (cur.name + ' (' + (cur.count || 0) + ' 张)') : (packs.length ? '选择图库' : '暂无图库')
+              })()),
+              h('span', { className: 'caret' }, packOpen ? '▲' : '▼'),
+            ),
+            packOpen ? h('div', { className: 'pack-dd-menu' },
+              packs.length === 0
+                ? h('div', { className: 'empty', style: { padding: 12 } }, '还没有可切换的图库')
+                : packs.map((p) => h('button', {
+                  type: 'button',
+                  key: p.id,
+                  className: 'pack-dd-item' + (p.id === packId ? ' on' : ''),
+                  onClick: () => onSetPack(p.id),
+                },
+                  h('span', null, p.name),
+                  h('span', { className: 'hint' },
+                    (p.count || 0) + ' 张' +
+                    (p.source === 'bundled' ? '' : p.source === 'user' ? ' · 导入' : ' · 自定义')),
+                )),
+            ) : null,
+          ),
+        ),
+        memeRoot ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', wordBreak: 'break-all' } }, memeRoot) : null,
+        h('div', { className: 'section-title' }, '扫描目录'),
+        h('div', { className: 'row', style: { width: '100%' } },
+          h('input', { type: 'text', value: packsDirInput, onChange: (e) => setPacksDirInput(e.target.value), placeholder: '自动扫描含 index.db 的子文件夹', style: { flex: 1, minWidth: 160 } }),
+          h('button', { onClick: () => onPickDir('packsDir') }, '选择目录'),
+          h('button', { onClick: () => onSavePacksDir() }, '保存'),
+        ),
+        h('div', { className: 'row' },
+          h('button', { onClick: () => { window.location.href = '/dsh-memes-export' } }, '导出图库'),
+          h('button', { onClick: () => importFileRef.current && importFileRef.current.click() }, '导入图库'),
+          h('button', { onClick: () => onPickDir('memeRoot') }, '打开其他目录'),
+          h('input', { ref: importFileRef, type: 'file', accept: '.zip,application/zip', style: { display: 'none' }, onChange: onImportPack }),
+        ),
+        rootNotice ? h('div', { className: 'notice' }, rootNotice) : null,
         // 目录浏览弹窗(WSL 无原生选择器,用 browse 能力前端浏览)
         browseOpen && browseList ? h('div', { className: 'meme-modal-mask', onClick: () => setBrowseOpen(false) },
           h('div', { className: 'meme-modal', style: { width: 420 }, onClick: (e) => e.stopPropagation() },

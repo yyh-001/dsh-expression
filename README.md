@@ -108,6 +108,27 @@ pnpm add file:/path/to/dsh-meme
   <img src="https://raw.githubusercontent.com/yyh-001/dsh-meme/main/docs/quick-picker.png" alt="输入框一键发表情包" width="80%" />
 </p>
 
+## 分享自己的表情包
+
+两条路：发给朋友，或挂到[宣传页](https://yyh-001.github.io/dsh-meme/)让别人预览。
+
+**发给朋友**
+
+1. 设置页 → **导出图库**，得到 `dsh-meme-pack-日期.zip`
+2. 把这个 ZIP 发出去
+3. 对方设置页 → **导入图库**，选这个 ZIP，会自动切换到新图库
+
+请用插件导出的 ZIP。GitHub 仓库页上的「Download ZIP / 下载源码」是压缩过的，导入会失败。
+
+**挂到宣传页**
+
+1. 先按上面导出 ZIP，解压成一个文件夹（里面应有 `index.db`、`manifest.json`、`memes/`）
+2. 新建 GitHub 仓库，把文件夹内容放进仓库根目录
+3. 加 `previews/`，放 6–12 张缩略图（jpg/png），宣传页靠它们做预览
+4. 仓库 Settings → Topics 加上 [`dsh-meme-pack`](https://github.com/topics/dsh-meme-pack)
+
+可选：把插件导出的那个 ZIP 挂到 GitHub Release，别人就能直接下载再导入。也可以 `git clone` 之后，在设置页把「图库目录」指到这个仓库。
+
 ## 它做什么
 
 | 能力 | 说明 |

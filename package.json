@@ -1,14 +1,14 @@
 {
-  "name": "dsh-expression",
+  "name": "dsh-meme",
   "version": "0.1.27",
   "description": "DeepSeek Harness 表情包插件:内置默认图库(官方-001,92 张),按情绪随机抽图,send_meme 发图(Web/QQ),设置页管理面板。",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yyh-001/dsh-expression.git"
+    "url": "git+https://github.com/yyh-001/dsh-meme.git"
   },
-  "homepage": "https://github.com/yyh-001/dsh-expression#readme",
+  "homepage": "https://github.com/yyh-001/dsh-meme#readme",
   "bugs": {
-    "url": "https://github.com/yyh-001/dsh-expression/issues"
+    "url": "https://github.com/yyh-001/dsh-meme/issues"
   },
   "type": "module",
   "main": "index.js",
@@ -44,6 +44,7 @@
   },
   "keywords": [
     "dsh-plugin",
+    "dsh-meme",
     "deepseek-harness",
     "meme",
     "emoticon",

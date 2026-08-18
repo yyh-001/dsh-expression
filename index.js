@@ -1,5 +1,6 @@
 /**
- * dsh-expression — selfloom 表情包层作为 DeepSeek Harness 的插件。
+ * dsh-meme — selfloom 表情包层作为 DeepSeek Harness 的插件。
+ * npm 包名 dsh-meme;插件 id 仍为 dsh-expression(兼容已有安装)。
  *
  * 图库:直接读随插件分发内置的默认图库(memes/official-001/index.db,
  * SQLite 索引 + memes/<tag>/ 图片文件),数据零迁移;搜索用 bigram Dice 相似度

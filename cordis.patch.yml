@@ -1,6 +1,7 @@
-# dsh-expression bundle patch: host plugin (send_meme + learn_meme + /dsh-memes)
+# dsh-meme bundle patch: host plugin (send_meme + learn_meme + /dsh-memes)
 # and client settings section. Activate with
-# `dsh plugin --profile web add file:/path/to/dsh-expression`.
+# `dsh plugin --profile web add dsh-meme`.
+# 插件 id 仍为 dsh-expression,避免已装用户崩掉。
 # 纯 insert(id/name)可热挂载免重启。图库目录不在这里写死——
 # 用户在设置页「图库目录」选择并保存到 ~/.dsh/dsh-expression.json,
 # 默认用包内置图库(memes/official-001)。历史教训:patch 硬编码某台机器的

@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yyh-001/dsh-expression/main/docs/hero.jpg" alt="dsh-expression — 找得到、发得出" width="100%" />
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-meme/main/docs/hero.jpg" alt="dsh-meme — 找得到、发得出" width="100%" />
 </p>
 
 <p align="center">
-  <strong>表情包插件 dsh-expression</strong> — 找得到、发得出、学得会
+  <strong>表情包插件 dsh-meme</strong> — 找得到、发得出、学得会
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
 
 ---
 
-**dsh-expression** 是 DeepSeek Harness 的表情包插件——找得到、发得出、学得会：
+**dsh-meme**（原 `dsh-expression`）是 DeepSeek Harness 的表情包插件——找得到、发得出、学得会：
 
 - **纯文本也能斗图**：界面显示表情图片，模型收到的是 `[表情: 描述]`，无需图片输入能力
 - **AI 自动学图**：用户说「入库」时，`learn_meme` 收录最近一张用户附件（不必填附件 id），自动识别分类/描述
@@ -30,22 +30,24 @@
 
 ## 安装
 
-已发布到 **npm**（`dsh-expression@0.1.26`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
+已发布到 **npm**（`dsh-meme`），一行装进任意 DSH profile（如 `~/.dsh/profiles/web/`）：
 
 ```bash
-dsh plugin --profile web add dsh-expression
+dsh plugin --profile web add dsh-meme
 # 等价于:
-pnpm add dsh-expression
+pnpm add dsh-meme
 ```
+
+旧包名 `dsh-expression` 已弃用，请改用 `dsh-meme`。插件内部 id 仍为 `dsh-expression`，已有安装不受影响。
 
 或从 GitHub / 本地直接装：
 
 ```bash
-pnpm add github:yyh-001/dsh-expression   # 或
-pnpm add file:/path/to/dsh-expression
+pnpm add github:yyh-001/dsh-meme   # 或
+pnpm add file:/path/to/dsh-meme
 ```
 
-> 注意：pnpm 有「新包安全期」（默认 24h），刚发布的版本会被静默回落到旧版；急用可在 `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 里加上版本号。
+> 注意：pnpm 有「新包安全期」（默认 24h），刚发布的版本会被静默回落到旧版；急用可在 `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 里加上 `dsh-meme`。
 
 ## 配置
 
@@ -64,7 +66,7 @@ pnpm add file:/path/to/dsh-expression
 输入框左侧点 **😊**（微信同款笑脸）直接选图一键发出，无需让模型代劳。
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yyh-001/dsh-expression/main/docs/chat-example.png" alt="模型根据情绪主动发表情包" width="80%" />
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-meme/main/docs/chat-example.png" alt="模型根据情绪主动发表情包" width="80%" />
 </p>
 
 ## 工具
@@ -95,13 +97,13 @@ pnpm add file:/path/to/dsh-expression
 - 分类筛选即时生效
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yyh-001/dsh-expression/main/docs/settings-panel.png" alt="设置页表情包管理面板" width="80%" />
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-meme/main/docs/settings-panel.png" alt="设置页表情包管理面板" width="80%" />
 </p>
 
 输入框 😊 一键发表情包：点开面板 → 搜索 / 浏览缩略图 → 点一张直接发出。
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yyh-001/dsh-expression/main/docs/quick-picker.png" alt="输入框一键发表情包" width="80%" />
+  <img src="https://raw.githubusercontent.com/yyh-001/dsh-meme/main/docs/quick-picker.png" alt="输入框一键发表情包" width="80%" />
 </p>
 
 ## 它做什么
@@ -148,12 +150,12 @@ learn_meme imageUrl="https://…"    # 收录任意图片 URL
 
 | 组件 | 说明 |
 |------|------|
-| **dsh-expression** | 本插件：`MemesStore`（情绪抽图）+ `send_meme`（发送）+ `learn_meme`（学图）+ 管理 API |
+| **dsh-meme** | 本插件：`MemesStore`（情绪抽图）+ `send_meme`（发送）+ `learn_meme`（学图）+ 管理 API |
 | **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + 消息通道；提供发图服务 |
 | **图库** | 内置默认图库 `memes/official-001/`（设置页可切换目录/导入分享包），源自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) |
 
 ```text
-dsh-expression/
+dsh-meme/
   index.js          插件入口：memeRoot 配置 + 管理 API + learn_meme/识图
   memes.js          MemesStore：SQLite 索引 + 情绪桶随机抽图 + 路径安全
   client.js         前端：设置页面板(上传/编辑/删除) + 😊 悬浮窗 + [表情: 描述] 配图

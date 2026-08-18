@@ -1,8 +1,13 @@
 {
   "id": "dafeiyu-001",
   "name": "大肥鱼",
-  "version": "1.0.0",
-  "description": "DeepSeek 鲸鱼娘 chibi 表情包，6 张：得意、干饭、生气、疑问、惊吓、晕。",
-  "tags": ["dafeiyu", "whale", "chibi", "starter"],
+  "version": "1.1.0",
+  "description": "DeepSeek 鲸鱼娘 chibi 表情包，24 张：得意干饭生气疑问惊吓晕、比心害羞花痴睡觉打招呼躺平、无语求饶嫌弃加班震惊加载、点赞拒绝偷看飘了猫爪求打赏。",
+  "tags": [
+    "dafeiyu",
+    "whale",
+    "chibi",
+    "custom"
+  ],
   "license": "personal"
 }

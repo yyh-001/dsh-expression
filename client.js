@@ -564,13 +564,8 @@ window.__ModuleLoader__.load({
       '.meme-trigger.active{color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent)}',
       '.meme-picker{position:absolute;bottom:calc(100% + 8px);left:0;width:min(360px,90vw);z-index:30;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.28);display:flex;flex-direction:column;gap:10px;padding:12px;max-height:46vh;overflow:hidden;font-size:12px;color:var(--dsw-alias-label-primary)}',
       '.meme-picker .mp-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}',
-      '.meme-picker .mp-search{display:flex;align-items:center;gap:6px;flex:1;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:9px;padding:5px 10px;transition:border-color .12s,box-shadow .12s}',
-      '.meme-picker .mp-search:focus-within{border-color:var(--dsw-alias-brand-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-brand-primary) 15%,transparent)}',
-      '.meme-picker .mp-search .mp-search-icon{color:var(--dsw-alias-label-secondary);font-size:12px;flex:none}',
-      '.meme-picker .mp-search input{flex:1;min-width:0;background:transparent;color:var(--dsw-alias-label-primary);border:none;font-size:12px;outline:none;padding:0}',
-      '.meme-picker .mp-search input::placeholder{color:var(--dsw-alias-label-secondary)}',
-      '.meme-picker .mp-tags{display:flex;gap:4px;flex-wrap:wrap;max-width:100%}',
-      '.meme-picker .mp-tag{padding:3px 10px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);cursor:pointer;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;transition:background .12s,color .12s,border-color .12s}',
+      '.meme-picker .mp-tabs{display:flex;gap:4px;align-items:center;overflow-x:auto;max-width:100%;padding-bottom:2px}',
+      '.meme-picker .mp-tag{padding:3px 10px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);cursor:pointer;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap;flex:none;transition:background .12s,color .12s,border-color .12s}',
       '.meme-picker .mp-tag:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary)}',
       '.meme-picker .mp-tag.on{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-layer-1)}',
       '.meme-picker .mp-grid{overflow-y:auto;display:flex;flex-wrap:wrap;gap:8px;max-height:38vh;padding:2px}',
@@ -620,22 +615,23 @@ window.__ModuleLoader__.load({
       const actions = props.inputActions
       const open = React.useSyncExternalStore(store.subscribe, store.get)
       const [memes, setMemes] = React.useState([])
-      const [q, setQ] = React.useState('')
+      const [activeTag, setActiveTag] = React.useState('') // '' = 全部组
 
       React.useEffect(() => {
         if (!open) return
         let alive = true
-        const qs = new URLSearchParams()
-        if (q) qs.set('q', q)
-        fetch('/dsh-memes-api?' + qs.toString())
+        fetch('/dsh-memes-api')
           .then((r) => r.json())
           .then((res) => {
             if (!alive || !res || !res.ok) return
-            setMemes(res.memes || [])
+            const list = res.memes || []
+            setMemes(list)
+            // 当前组在数据里不存在时(切换图库后)回退「全部」
+            setActiveTag((cur) => (cur && !list.some((m) => m.tag === cur) ? '' : cur))
           })
           .catch(() => {})
         return () => { alive = false }
-      }, [open, q])
+      }, [open])
 
       // 点外部(非面板、非 😊 按钮)自动收起。
       React.useEffect(() => {
@@ -666,14 +662,16 @@ window.__ModuleLoader__.load({
         store.set(false)
       }
 
-      const searchInput = h('div', { className: 'mp-search' },
-        h('span', { className: 'mp-search-icon' }, '🔍'),
-        h('input', {
-          type: 'text', placeholder: '搜表情/情绪', value: q,
-          onChange: (e) => setQ(e.target.value),
-        }),
-      )
-      const cells = memes.map((m) => h('div', {
+      // 组 tab:全部 + 各分类(保持库内顺序)
+      const tagList = []
+      const seen = new Set()
+      for (const m of memes) {
+        if (!m.tag || seen.has(m.tag)) continue
+        seen.add(m.tag)
+        tagList.push(m.tag)
+      }
+      const shown = activeTag ? memes.filter((m) => m.tag === activeTag) : memes
+      const cells = shown.map((m) => h('div', {
         key: m.path, className: 'mp-cell', title: m.caption || m.file_name, onClick: () => send(m),
         style: {
           width: '74px', height: '74px',
@@ -685,7 +683,10 @@ window.__ModuleLoader__.load({
       }))
 
       return h('div', { className: 'meme-picker', onClick: (e) => e.stopPropagation() },
-        h('div', { className: 'mp-row' }, searchInput),
+        h('div', { className: 'mp-tabs' },
+          h('button', { type: 'button', className: 'mp-tag' + (activeTag === '' ? ' on' : ''), onClick: () => setActiveTag('') }, '全部'),
+          tagList.map((t) => h('button', { type: 'button', key: t, className: 'mp-tag' + (t === activeTag ? ' on' : ''), onClick: () => setActiveTag(t) }, tagZh(t))),
+        ),
         memes.length === 0
           ? h('div', { className: 'mp-empty' }, '没有匹配的表情包')
           : h('div', { className: 'mp-grid' }, cells),

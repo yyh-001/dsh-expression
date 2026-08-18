@@ -1,12 +1,14 @@
 /**
- * dsh-expression — 设置页表情包管理面板(Client 半边)。
+ * dsh-meme — 设置页表情包管理面板(Client 半边)。
  *
  * 以 dsh.client bundle 格式加载(与 dsh-ssh 同款):注册 settings.section
  * 「表情包」页,渲染完整管理面板(列表/上传/编辑/删除)。
- * 数据走 dsh-expression 的 HTTP API(/dsh-memes-api,静态、重启不丢)。
+ * 数据走 dsh-meme 的 HTTP API(/dsh-memes-api,静态、重启不丢)。
+ * 注册 id 必须等于 loader entry 名(dsh-meme),否则 ModuleLoader 报
+ * "loaded without registering dsh-meme"。
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-expression',
+  id: 'dsh-meme',
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports

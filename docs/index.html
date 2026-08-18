@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>dsh-meme — 找得到、发得出、学得会</title>
+  <meta name="description" content="DeepSeek Harness 表情包插件。按心情发、一点就发、说一声入库。给仓库加上 topic dsh-meme-pack 即可被收录。" />
+  <meta property="og:title" content="dsh-meme" />
+  <meta property="og:description" content="找得到、发得出、学得会" />
+  <meta property="og:image" content="./hero.jpg" />
+  <link rel="icon" href="./hero.jpg" />
+  <style>
+    :root {
+      --ink: #070708;
+      --paper: #f4f0e8;
+      --mute: #9a958c;
+      --line: #242428;
+      --ember: #e8944a;
+      --tide: #3aa8a4;
+      --btn: #f6f3ec;
+      --max: 26.5rem;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: ui-sans-serif, system-ui, "PingFang SC", "Noto Sans SC", sans-serif;
+      background: var(--ink);
+      color: var(--paper);
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .22;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.55'/></svg>");
+    }
+    .wrap {
+      position: relative;
+      z-index: 1;
+      width: min(100%, 44rem);
+      margin: 0 auto;
+      padding: 1.15rem 1.15rem 4rem;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+    }
+    .stars, .lang {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      height: 2rem;
+      padding: 0 .7rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--paper);
+      text-decoration: none;
+      font-size: .8rem;
+      background: #101012;
+    }
+    .lang { padding: 0 .25rem; }
+    .lang button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--mute);
+      font: inherit;
+      padding: .2rem .55rem;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .lang button[aria-pressed="true"] {
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .hero {
+      width: min(100%, var(--max));
+      margin: 3.4rem auto 0;
+      text-align: center;
+    }
+    .mark {
+      display: inline-flex;
+      align-items: center;
+      gap: .55rem;
+      font-size: clamp(2rem, 8vw, 2.6rem);
+      font-weight: 750;
+      letter-spacing: -.04em;
+      line-height: 1;
+    }
+    .face {
+      width: 1.7rem;
+      height: 1.7rem;
+      border: 2px solid var(--paper);
+      border-radius: 50%;
+      position: relative;
+    }
+    .face::before, .face::after {
+      content: "";
+      position: absolute;
+      top: .42rem;
+      width: .22rem;
+      height: .22rem;
+      background: var(--paper);
+      border-radius: 50%;
+    }
+    .face::before { left: .38rem; }
+    .face::after { right: .38rem; box-shadow: 0 .42rem 0 -.07rem var(--paper), -.18rem .42rem 0 -.07rem var(--paper), .18rem .42rem 0 -.07rem var(--paper); }
+    h1 {
+      margin: 1.15rem 0 .55rem;
+      font-size: clamp(1.35rem, 5.2vw, 1.7rem);
+      font-weight: 730;
+      letter-spacing: .02em;
+      color: var(--ember);
+    }
+    .lead, .note {
+      margin: 0 auto;
+      max-width: 22rem;
+      color: var(--mute);
+      line-height: 1.55;
+      font-size: .95rem;
+    }
+    .note {
+      margin-top: .85rem;
+      font-size: .78rem;
+      display: flex;
+      gap: .4rem;
+      justify-content: center;
+      align-items: flex-start;
+      text-align: left;
+    }
+    .note b {
+      flex: none;
+      width: 1rem;
+      height: 1rem;
+      margin-top: .15rem;
+      border: 1px solid var(--mute);
+      border-radius: 50%;
+      font-size: .7rem;
+      font-weight: 700;
+      display: grid;
+      place-items: center;
+      color: var(--mute);
+    }
+    .cta {
+      margin-top: 1.6rem;
+      display: grid;
+      gap: .7rem;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      min-height: 3.15rem;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 650;
+      font-size: .98rem;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-primary { background: var(--btn); color: #111; }
+    .btn-ghost { background: transparent; color: var(--paper); border-color: #3a3a40; }
+    .cmd {
+      margin: 0;
+      font: 500 .78rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--tide);
+    }
+    .meta {
+      margin-top: .9rem;
+      color: var(--mute);
+      font-size: .82rem;
+    }
+    .meta a { color: var(--paper); }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: .4rem;
+      margin: 1.7rem 0 0;
+    }
+    .chips span {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: .32rem .7rem;
+      font-size: .75rem;
+      color: #d8d3c8;
+    }
+    .shot {
+      width: min(100%, 36rem);
+      margin: 2.4rem auto 0;
+      border-radius: 1.1rem;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: #111;
+    }
+    .shot img { display: block; width: 100%; }
+    .packs {
+      width: min(100%, 36rem);
+      margin: 2.8rem auto 0;
+      text-align: left;
+    }
+    .packs h2 {
+      margin: 0 0 .35rem;
+      font-size: 1.05rem;
+    }
+    .hint { margin: 0 0 1rem; color: var(--mute); font-size: .84rem; line-height: 1.5; }
+    .hint code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: .8em;
+      color: var(--ember);
+    }
+    .grid { display: grid; gap: .7rem; }
+    .card {
+      display: block;
+      padding: .9rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: .9rem;
+      background: #101012;
+      color: inherit;
+      text-decoration: none;
+    }
+    .card strong { display: block; font-size: .95rem; }
+    .card p { margin: .3rem 0 0; color: var(--mute); font-size: .8rem; line-height: 1.45; }
+    .card .row { display: flex; gap: .8rem; margin-top: .45rem; color: #c8c3b8; font-size: .75rem; }
+    .empty { color: var(--mute); font-size: .88rem; padding: .4rem 0 1rem; }
+    footer {
+      margin: 2.4rem auto 0;
+      width: min(100%, var(--max));
+      text-align: center;
+      color: var(--mute);
+      font-size: .75rem;
+    }
+    footer a { color: var(--paper); }
+    :focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="stars" id="stars" href="https://github.com/yyh-001/dsh-meme" target="_blank" rel="noreferrer">
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8"/></svg>
+        <span id="star-count">GitHub</span>
+      </a>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="zh" aria-pressed="true">中文</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="mark">dsh-meme <span class="face" aria-hidden="true"></span></div>
+      <h1 data-i="tagline">找得到、发得出、学得会</h1>
+      <p class="lead" data-i="lead">DeepSeek Harness 的表情包插件。模型只写文字，对话里直接出图。</p>
+      <p class="note"><b>i</b><span data-i="note">这是社区维护的开源项目，并非 DeepSeek 官方产品。</span></p>
+      <div class="cta">
+        <button class="btn btn-primary" id="copy" type="button" data-i="copy">复制安装命令</button>
+        <a class="btn btn-ghost" href="https://github.com/yyh-001/dsh-meme" target="_blank" rel="noreferrer" data-i="github">在 GitHub 上查看</a>
+      </div>
+      <p class="cmd">dsh plugin --profile web add dsh-meme</p>
+      <p class="meta"><span data-i="qq">交流</span> · <a href="https://qm.qq.com/q/7AD2g70HqS">QQ 993579665</a></p>
+      <div class="chips">
+        <span data-i="c1">纯文本斗图</span>
+        <span data-i="c2">情绪主动发图</span>
+        <span data-i="c3">像 QQ/微信 一样发图</span>
+        <span data-i="c4">AI 自动学图</span>
+        <span data-i="c5">自定义表情包</span>
+      </div>
+    </section>
+
+    <figure class="shot">
+      <img src="./chat-example.png" alt="dsh-meme 在对话里发表情包" />
+    </figure>
+
+    <section class="packs">
+      <h2 data-i="packs">社区合集</h2>
+      <p class="hint" data-i="how">给 GitHub 仓库加上 topic <code>dsh-meme-pack</code>，这里会自动收录。ZIP 可在插件设置里导入。</p>
+      <div class="grid" id="pack-list"></div>
+    </section>
+
+    <footer>
+      MIT · <a href="https://github.com/yyh-001/dsh-meme">yyh-001/dsh-meme</a>
+    </footer>
+  </div>
+
+  <script>
+    const INSTALL = "dsh plugin --profile web add dsh-meme"
+    const TEXT = {
+      zh: {
+        tagline: "找得到、发得出、学得会",
+        lead: "DeepSeek Harness 的表情包插件。模型只写文字，对话里直接出图。",
+        note: "这是社区维护的开源项目，并非 DeepSeek 官方产品。",
+        copy: "复制安装命令",
+        copied: "已复制",
+        github: "在 GitHub 上查看",
+        qq: "交流",
+        c1: "纯文本斗图",
+        c2: "情绪主动发图",
+        c3: "像 QQ/微信 一样发图",
+        c4: "AI 自动学图",
+        c5: "自定义表情包",
+        packs: "社区合集",
+        how: "给 GitHub 仓库加上 topic dsh-meme-pack，这里会自动收录。ZIP 可在插件设置里导入。",
+        empty: "还没有合集。你的仓库可以是第一个。",
+        fail: "暂时读不到合集，稍后再试。",
+        builtin: "插件内置默认图库，装完即可用。",
+        stars: (n) => n + " stars",
+      },
+      en: {
+        tagline: "Find. Send. Learn.",
+        lead: "Meme stickers for DeepSeek Harness. The model writes text; chat shows the picture.",
+        note: "Community open source. Not an official DeepSeek product.",
+        copy: "Copy install command",
+        copied: "Copied",
+        github: "View on GitHub",
+        qq: "Chat",
+        c1: "Text-only send",
+        c2: "Mood auto-send",
+        c3: "QQ/WeChat-style picker",
+        c4: "Auto-learn",
+        c5: "Custom packs",
+        packs: "Community packs",
+        how: "Add the GitHub topic dsh-meme-pack to your repo and it shows up here. Import the ZIP in plugin settings.",
+        empty: "No packs yet. Yours can be the first.",
+        fail: "Could not load packs right now.",
+        builtin: "A default pack ships with the plugin.",
+        stars: (n) => n + " stars",
+      },
+    }
+
+    let lang = "zh"
+    function applyLang() {
+      const t = TEXT[lang]
+      document.documentElement.lang = lang === "zh" ? "zh-CN" : "en"
+      document.querySelectorAll("[data-i]").forEach((el) => {
+        const key = el.getAttribute("data-i")
+        if (typeof t[key] === "string") el.textContent = t[key]
+      })
+      document.querySelectorAll(".lang button").forEach((b) => {
+        b.setAttribute("aria-pressed", b.dataset.lang === lang ? "true" : "false")
+      })
+      const n = document.getElementById("star-count").dataset.n
+      if (n) document.getElementById("star-count").textContent = t.stars(Number(n).toLocaleString())
+    }
+
+    document.querySelector(".lang").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-lang]")
+      if (!btn) return
+      lang = btn.dataset.lang
+      applyLang()
+      renderPacks(window.__packs, window.__packErr)
+    })
+
+    const copyBtn = document.getElementById("copy")
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(INSTALL)
+      } catch {
+        const ta = document.createElement("textarea")
+        ta.value = INSTALL
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand("copy")
+        ta.remove()
+      }
+      copyBtn.textContent = TEXT[lang].copied
+      setTimeout(() => { copyBtn.textContent = TEXT[lang].copy }, 1400)
+    })
+
+    function fmtStars(n) {
+      if (n >= 1000) return (Math.round(n / 100) / 10) + "k"
+      return String(n)
+    }
+
+    fetch("https://api.github.com/repos/yyh-001/dsh-meme")
+      .then((r) => r.ok ? r.json() : null)
+      .then((repo) => {
+        if (!repo) return
+        const el = document.getElementById("star-count")
+        el.dataset.n = repo.stargazers_count
+        el.textContent = TEXT[lang].stars(Number(repo.stargazers_count).toLocaleString())
+      })
+      .catch(() => {})
+
+    const builtin = {
+      full_name: "yyh-001/dsh-meme",
+      html_url: "https://github.com/yyh-001/dsh-meme",
+      description: "",
+      stargazers_count: null,
+      builtin: true,
+    }
+
+    function renderPacks(items, err) {
+      const root = document.getElementById("pack-list")
+      const t = TEXT[lang]
+      const cards = [builtin].concat(items || [])
+      if (err && !(items && items.length)) {
+        root.innerHTML = '<p class="empty">' + t.fail + "</p>"
+        return
+      }
+      if (!items || items.length === 0) {
+        root.innerHTML =
+          '<a class="card" href="' + builtin.html_url + '"><strong>official-001</strong><p>' +
+          t.builtin + '</p></a><p class="empty">' + t.empty + "</p>"
+        return
+      }
+      root.innerHTML = cards.map((p) => {
+        const desc = p.builtin ? t.builtin : (p.description || "")
+        const name = p.builtin ? "official-001 · yyh-001/dsh-meme" : p.full_name
+        const extra = p.builtin || p.stargazers_count == null ? "" :
+          '<div class="row">★ ' + fmtStars(p.stargazers_count) + "</div>"
+        return '<a class="card" href="' + p.html_url + '" target="_blank" rel="noreferrer"><strong>' +
+          name + "</strong><p>" + desc + "</p>" + extra + "</a>"
+      }).join("")
+    }
+
+    const q = "https://api.github.com/search/repositories?q=topic:dsh-meme-pack&sort=stars"
+    Promise.all([
+      fetch(q).then((r) => r.ok ? r.json() : Promise.reject()),
+      fetch("./packs.json").then((r) => r.ok ? r.json() : []),
+    ])
+      .then(([live, cached]) => {
+        const items = (live && live.items) || cached || []
+        window.__packs = items.filter((p) => p.full_name !== "yyh-001/dsh-meme")
+        renderPacks(window.__packs)
+      })
+      .catch(() => {
+        fetch("./packs.json")
+          .then((r) => r.ok ? r.json() : [])
+          .then((cached) => {
+            window.__packs = cached || []
+            renderPacks(window.__packs)
+          })
+          .catch(() => {
+            window.__packErr = true
+            renderPacks([], true)
+          })
+      })
+
+    applyLang()
+    renderPacks([])
+  </script>
+</body>
+</html>

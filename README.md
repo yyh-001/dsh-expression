@@ -16,6 +16,8 @@
 
 ---
 
+宣传页：**[yyh-001.github.io/dsh-meme](https://yyh-001.github.io/dsh-meme/)**（社区合集用 GitHub topic [`dsh-meme-pack`](https://github.com/topics/dsh-meme-pack) 自动收录）
+
 **dsh-meme**（原 `dsh-expression`）是 DeepSeek Harness 的表情包插件——找得到、发得出、学得会：
 
 - **纯文本也能斗图**：界面显示表情图片，模型收到的是 `[表情: 描述]`，无需图片输入能力

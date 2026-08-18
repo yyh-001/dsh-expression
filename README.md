@@ -53,9 +53,9 @@ pnpm add file:/path/to/dsh-meme
 
 ## 配置
 
-默认内置图库（`memes/official-001`），开箱即用，**无需任何配置**。
+默认内置两套图库：`official-001`（官方表情包 1 号，92 张）和 `dafeiyu-001`（大肥鱼，6 张），开箱用官方包，**无需任何配置**。
 
-图库目录在**设置页「图库目录」**里随时切换（浏览选择或输入路径，保存即生效，无需重启）——选择空目录会自动初始化成新图库，选择目录不存在时自动创建。设置存在 `~/.dsh/dsh-expression.json`，升级插件不丢。
+设置页「当前图库」下拉即可切换。插件会扫描内置 `memes/*` 以及「扫描目录」（默认 `~/.dsh/meme-packs`）下带 `index.db` 的子文件夹。导入 ZIP 也会放进扫描目录并立刻切过去。设置存在 `~/.dsh/dsh-expression.json`，升级插件不丢。
 
 ## 装完即用
 
@@ -91,7 +91,8 @@ pnpm add file:/path/to/dsh-meme
 
 设置页「表情包」面板（已美化）：
 
-- **图库目录**：浏览选择/输入路径，保存即生效（空目录自动初始化）
+- **当前图库**：下拉切换已扫描到的表情包组（内置 + 扫描目录）
+- **扫描目录**：改路径后自动发现子文件夹里的图库；导入 ZIP 也放这里
 - **导出/导入图库**：打包成 ZIP 分享给别人，导入别人的包一键切换
 - **上传弹窗**：选图预览 + 分类下拉（选择/新建/删除分类）+ 描述 + 关键词
 - **编辑弹窗**：同款分类下拉，改分类/描述/关键词
@@ -127,7 +128,7 @@ pnpm add file:/path/to/dsh-meme
 3. 加 `previews/`，放 6–12 张缩略图（jpg/png），宣传页靠它们做预览
 4. 仓库 Settings → Topics 加上 [`dsh-meme-pack`](https://github.com/topics/dsh-meme-pack)
 
-可选：把插件导出的那个 ZIP 挂到 GitHub Release，别人就能直接下载再导入。也可以 `git clone` 之后，在设置页把「图库目录」指到这个仓库。
+可选：把插件导出的那个 ZIP 挂到 GitHub Release，别人就能直接下载再导入。也可以 `git clone` 之后，把仓库放进扫描目录（或设置页「打开其他目录」指过去）。
 
 ## 它做什么
 
@@ -139,7 +140,7 @@ pnpm add file:/path/to/dsh-meme
 | **输入框一键发图** | 会话输入框左侧 😊 按钮 → 悬浮面板选图 → 一点即发 |
 | **情绪主动发图** | 气氛对了就主动甩图；发完短接，让图自己说话 |
 | **管理 API** | 上传 / 编辑 / 删除 / 删除分类，全部在设置页完成，数据持久 |
-| **图库目录切换** | 设置页浏览选择图库目录，保存即时生效，空目录自动初始化 |
+| **图库切换** | 设置页下拉切换已扫描图库；扫描目录默认 `~/.dsh/meme-packs` |
 | **导出 / 导入** | 图库一键打包 ZIP 分享，导入别人的包自动切换（零依赖实现） |
 
 ## 日常命令（模型视角）
@@ -163,7 +164,10 @@ learn_meme imageUrl="https://…"    # 收录任意图片 URL
 
 ## 图库来源
 
-内置默认图库（`id: official-001`，名「官方表情包1号」）来自 **Astrbot mememanager 官方初始表情包**：
+内置两套：
+
+- **大肥鱼**（`id: dafeiyu-001`，6 张鲸鱼娘 chibi：得意 / 干饭 / 生气 / 疑问 / 惊吓 / 晕），设置页可切过来。
+- **官方表情包1号**（`id: official-001`，默认）来自 **Astrbot mememanager 官方初始表情包**：
 
 - 上游仓库：[anka-afk/astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01)（`main` 分支），维护者 **anka-afk**
 - 构成：`index.db`（SQLite 索引，含每张 caption/关键词）+ `manifest.json`（分类说明 + 来源标注）+ `memes/<tag>/` 图片 + `previews/`
@@ -175,7 +179,7 @@ learn_meme imageUrl="https://…"    # 收录任意图片 URL
 |------|------|
 | **dsh-meme** | 本插件：`MemesStore`（情绪抽图）+ `send_meme`（发送）+ `learn_meme`（学图）+ 管理 API |
 | **[dsh-companion](https://github.com/yyh-001/dsh-companion)** | 人设 + Hermes 记忆 + 消息通道；提供发图服务 |
-| **图库** | 内置默认图库 `memes/official-001/`（设置页可切换目录/导入分享包），源自 [astrbot-meme-pack-official-01](https://github.com/anka-afk/astrbot-meme-pack-official-01) |
+| **图库** | 内置 `official-001` + `dafeiyu-001`，设置页扫描切换 / 导入分享包 |
 
 ```text
 dsh-meme/
@@ -184,7 +188,8 @@ dsh-meme/
   client.js         前端：设置页面板(上传/编辑/删除) + 😊 悬浮窗 + [表情: 描述] 配图
   cordis.patch.yml  bundle patch(纯 insert,热挂载免重启)
   memes/
-    official-001/   内置默认图库（index.db + manifest.json + memes/<tag>/）
+    official-001/   内置默认图库（92 张）
+    dafeiyu-001/    内置大肥鱼（6 张鲸鱼娘）
   package.json      name / inject / peer deps
   README.md
   LICENSE

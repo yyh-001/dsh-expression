@@ -2,9 +2,8 @@
  * dsh-meme — selfloom 表情包层作为 DeepSeek Harness 的插件。
  * npm 包名 dsh-meme;插件 id 仍为 dsh-expression(兼容已有安装)。
  *
- * 图库:直接读随插件分发内置的默认图库(memes/official-001/index.db,
- * SQLite 索引 + memes/<tag>/ 图片文件),数据零迁移;搜索用 bigram Dice 相似度
- * + 口语同义词兜底(「摸鱼」→「下班 工作」)。
+ * 图库:随插件分发 memes/official-001 与 memes/dafeiyu-001;
+ * 设置页扫描用户目录(~/.dsh/meme-packs)下拉切换。SQLite 索引 + memes/<tag>/。
  *
  * 发送(双通道):
  *   1. QQ 通道:消费 dsh-companion 提供的 `companionQq` 服务(sendImage/isOnline);
@@ -15,11 +14,14 @@
  * 管理操作(上传/删除/改元数据)不移植——那是控制台的活,模型只需"选图发送"。
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, rmSync, readdirSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync, rmSync } from 'node:fs'
+import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
-import { MemesStore, defaultMemeRoot, registerSendMemeTool } from './memes.js'
+import {
+  MemesStore, defaultPacksDir, scanPacks, readPackMeta,
+  resolveActiveRoot, liveStore, registerSendMemeTool,
+} from './memes.js'
 
 // ---- 极简 ZIP(store 无压缩)读写:零依赖导出/导入图库包 ----
 const CRC_TABLE = (() => {
@@ -139,17 +141,16 @@ export function apply(ctx, config) {
   const readSettings = () => {
     try { return JSON.parse(readFileSync(settingsFile, 'utf8')) } catch (e) { return {} }
   }
-  const writeSettings = (s) => {
+  const writeSettings = (patch) => {
     try {
       mkdirSync(join(process.env.HOME || '.', '.dsh'), { recursive: true })
-      writeFileSync(settingsFile, JSON.stringify(s, null, 2))
+      writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), ...patch }, null, 2))
     } catch (e) {}
   }
-  const userMemeRoot = readSettings().memeRoot
-  const memeRoot = userMemeRoot || config?.memeRoot || defaultMemeRoot()
+  const memeRoot = resolveActiveRoot(readSettings(), config?.memeRoot)
   let memes = null
   try {
-    memes = new MemesStore(memeRoot)
+    memes = liveStore(new MemesStore(memeRoot))
   } catch (error) {
     console.error('[dsh-expression] meme store unavailable:', error && error.message)
     return
@@ -243,7 +244,29 @@ export function apply(ctx, config) {
     let adminDb = new DatabaseSync(join(memes.root, 'index.db')) // 可写连接
     // 运行时切换图库目录:校验 → 持久化设置 → 原子替换 memes/adminDb。
     // 工具/路由/API 闭包引用变量,替换后立即指向新图库,无需重启。
-    const reloadMemeStore = (dir) => {
+    const packsDirNow = () => readSettings().packsDir || defaultPacksDir()
+    const listAllPacks = () => {
+      const packs = scanPacks(packsDirNow())
+      const root = resolve(memes.root)
+      if (!packs.some((p) => resolve(p.path) === root)) {
+        const meta = readPackMeta(memes.root, readSettings().packId || '_custom', 'custom')
+        packs.unshift(meta)
+      }
+      return packs
+    }
+    const packPayload = () => {
+      const s = readSettings()
+      const packs = listAllPacks()
+      const packId = s.packId || (packs.find((p) => resolve(p.path) === resolve(memes.root)) || {}).id || ''
+      return {
+        memeRoot: memes.root,
+        packId,
+        packsDir: packsDirNow(),
+        packs,
+        configured: !!(s.memeRoot || s.packId),
+      }
+    }
+    const reloadMemeStore = (dir, packId) => {
       // 目录不存在则创建;没有 index.db 则初始化空图库(用户可传图/学图逐步填充)
       mkdirSync(dir, { recursive: true })
       const indexPath = join(dir, 'index.db')
@@ -254,8 +277,13 @@ export function apply(ctx, config) {
       }
       const next = new MemesStore(dir)
       const nextDb = new DatabaseSync(indexPath)
-      writeSettings({ memeRoot: dir })
-      memes = next
+      const abs = resolve(dir)
+      const hit = scanPacks(packsDirNow()).find((p) => resolve(p.path) === abs)
+      writeSettings({
+        memeRoot: abs,
+        packId: packId || (hit ? hit.id : '_custom'),
+      })
+      memes.replace(next)
       adminDb = nextDb
     }
 
@@ -495,8 +523,8 @@ export function apply(ctx, config) {
             const entries = unzipStore(Buffer.from(data, 'base64'))
             const indexPath = entries.get('index.db')
             if (!indexPath) throw new Error('ZIP 里没有 index.db,不是有效的表情包包')
-            // 解包到 ~/.dsh/meme-packs/<name>(包外,持久)
-            const target = join(process.env.HOME || '.', '.dsh', 'meme-packs', name)
+            // 解包到扫描目录/<name>(包外,持久)
+            const target = join(packsDirNow(), name)
             rmSync(target, { recursive: true, force: true })
             mkdirSync(target, { recursive: true })
             for (const [rel, bytes] of entries) {
@@ -504,15 +532,28 @@ export function apply(ctx, config) {
               mkdirSync(dirname(full), { recursive: true })
               writeFileSync(full, bytes)
             }
-            reloadMemeStore(target)
-            json(res, { ok: true, memeRoot: target, total: memes.list().memes.length, message: '导入成功,已切换到新图库' })
+            reloadMemeStore(target, name)
+            json(res, { ok: true, ...packPayload(), total: memes.list().memes.length, message: '导入成功,已切换到新图库' })
           } else if (op === 'getMemeRoot') {
-            json(res, { ok: true, memeRoot: memes.root, configured: !!readSettings().memeRoot })
+            json(res, { ok: true, ...packPayload() })
+          } else if (op === 'setPack') {
+            const packId = String(body.packId || '').trim()
+            if (!packId) throw new Error('未指定图库')
+            const hit = listAllPacks().find((p) => p.id === packId)
+            if (!hit) throw new Error('未知图库: ' + packId)
+            reloadMemeStore(hit.path, hit.id)
+            json(res, { ok: true, ...packPayload(), message: '已切换图库,立即生效' })
+          } else if (op === 'setPacksDir') {
+            const dir = String(body.packsDir || '').trim()
+            if (!dir) throw new Error('目录不能为空')
+            mkdirSync(dir, { recursive: true })
+            writeSettings({ packsDir: resolve(dir) })
+            json(res, { ok: true, ...packPayload(), message: '已更新扫描目录' })
           } else if (op === 'setMemeRoot') {
             const dir = String(body.memeRoot || '').trim()
             if (!dir) throw new Error('目录不能为空')
             reloadMemeStore(dir)
-            json(res, { ok: true, memeRoot: memes.root, message: '已切换图库,立即生效' })
+            json(res, { ok: true, ...packPayload(), message: '已切换图库,立即生效' })
           } else {
             json(res, { ok: false, error: '未知操作: ' + op }, 400)
           }

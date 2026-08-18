@@ -5,14 +5,97 @@
  * 模型看描述觉得贴再发。管理面板仍可按 caption 子串筛选。
  */
 import { DatabaseSync } from 'node:sqlite'
-import { join, resolve, sep } from 'node:path'
+import { basename, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+
+/** 内置图库根目录：插件包内 memes/<id>/（含 official-001、dafeiyu-001）。 */
+export function bundledPacksDir() {
+  return fileURLToPath(new URL('./memes', import.meta.url))
+}
 
 /** 内置默认图库根：随插件分发的 memes/official-001（零迁移）。可用 memeRoot 覆盖。 */
 export function defaultMemeRoot() {
-  return fileURLToPath(new URL('./memes/official-001', import.meta.url))
+  return join(bundledPacksDir(), 'official-001')
+}
+
+/** 用户导入/自建图库的扫描目录。 */
+export function defaultPacksDir() {
+  return join(process.env.HOME || '.', '.dsh', 'meme-packs')
+}
+
+export function isPackDir(dir) {
+  try {
+    return statSync(dir).isDirectory() && existsSync(join(dir, 'index.db'))
+  } catch {
+    return false
+  }
+}
+
+/** 读 manifest + 张数。id 以文件夹名为准(切换键稳定)。 */
+export function readPackMeta(dir, id = basename(dir), source = 'custom') {
+  let name = id
+  let description = ''
+  try {
+    const m = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'))
+    if (m && m.name) name = String(m.name)
+    if (m && m.description) description = String(m.description)
+  } catch { /* 无 manifest 也能当包用 */ }
+  let count = 0
+  try {
+    const db = new DatabaseSync(join(dir, 'index.db'), { readOnly: true })
+    count = Number(db.prepare('SELECT COUNT(*) AS n FROM memes').get().n) || 0
+    db.close()
+  } catch { /* 空库或坏库 */ }
+  return { id, name, description, count, path: resolve(dir), source }
+}
+
+/**
+ * 扫描可切换图库:插件内置 memes/* + 用户扫描目录子文件夹。
+ * 同 id 时用户目录覆盖内置(方便自己改官方包)。
+ */
+export function scanPacks(packsDir = defaultPacksDir()) {
+  const byId = new Map()
+  const addFrom = (parent, source) => {
+    if (!parent || !existsSync(parent)) return
+    let names
+    try { names = readdirSync(parent) } catch { return }
+    for (const name of names) {
+      const dir = join(parent, name)
+      if (!isPackDir(dir)) continue
+      byId.set(name, readPackMeta(dir, name, source))
+    }
+  }
+  addFrom(bundledPacksDir(), 'bundled')
+  addFrom(packsDir, 'user')
+  return [...byId.values()]
+}
+
+/** 设置 packId > memeRoot > patch config > 内置默认。 */
+export function resolveActiveRoot(settings = {}, configRoot) {
+  const packs = scanPacks(settings.packsDir || defaultPacksDir())
+  const packId = String(settings.packId || '').trim()
+  if (packId && packId !== '_custom') {
+    const hit = packs.find((p) => p.id === packId)
+    if (hit) return hit.path
+  }
+  if (settings.memeRoot) return settings.memeRoot
+  if (configRoot) return configRoot
+  return defaultMemeRoot()
+}
+
+/** 热切换时工具闭包仍指向同一对象:replace 内部 store。 */
+export function liveStore(store) {
+  const box = {
+    get root() { return box._s.root },
+    list(...a) { return box._s.list(...a) },
+    sampleMood(...a) { return box._s.sampleMood(...a) },
+    resolveStored(...a) { return box._s.resolveStored(...a) },
+    replace(next) { box._s = next },
+  }
+  box._s = store
+  return box
 }
 
 /** 模型只认这 6 个情绪桶;磁盘上仍是细 tag(路径不改)。 */
@@ -22,16 +105,16 @@ const MOODS = {
   sad: ['sad', 'sigh'],
   shy: ['shy'],
   confused: ['confused', 'surprised', 'see'],
-  daily: ['sleep', 'morning', 'work', 'cpu', 'reply'],
+  daily: ['daily', 'sleep', 'morning', 'work', 'cpu', 'reply'],
 }
 
 const MOOD_WORDS = {
-  happy: '开心 高兴 兴奋 喜欢 卖萌 可爱 比心 哈哈 欢迎',
+  happy: '开心 高兴 兴奋 喜欢 卖萌 可爱 比心 哈哈 欢迎 得意 好耶 满意',
   angry: '生气 愤怒 暴躁 笨蛋 傻瓜 嫌弃 逮',
-  sad: '难过 哭 委屈 叹气 无语 求饶 怂',
+  sad: '难过 哭 委屈 叹气 无语 求饶 怂 晕',
   shy: '害羞 腼腆 脸红 花痴',
-  confused: '困惑 疑惑 惊讶 问号 懵',
-  daily: '困 睡觉 早上好 打招呼 你好 上班 下班 摸鱼 工作 熬夜',
+  confused: '困惑 疑惑 惊讶 问号 懵 惊吓 震惊',
+  daily: '困 睡觉 早上好 打招呼 你好 上班 下班 摸鱼 工作 熬夜 吃饭 干饭 饿 日常',
 }
 
 export function moodNames() {

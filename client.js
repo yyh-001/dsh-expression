@@ -18,6 +18,14 @@ window.__ModuleLoader__.load({
       '.meme-panel{display:flex;flex-direction:column;gap:14px;padding:4px 0;font-size:13px;color:var(--dsw-alias-label-primary)}',
       '.meme-panel .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
       '.meme-panel .section-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);text-transform:uppercase;letter-spacing:.04em;margin:2px 0 -4px}',
+      '.meme-panel .pack-dd{position:relative;flex:1;min-width:160px}',
+      '.meme-panel .pack-dd-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer;padding:8px 12px}',
+      '.meme-panel .pack-dd-btn .caret{opacity:.55;font-size:11px;flex:none}',
+      '.meme-panel .pack-dd-menu{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:4px;max-height:240px;overflow:auto}',
+      '.meme-panel .pack-dd-item{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;border:none;background:transparent;padding:8px 10px;border-radius:6px;cursor:pointer}',
+      '.meme-panel .pack-dd-item:hover{background:var(--dsw-alias-bg-layer-2)}',
+      '.meme-panel .pack-dd-item.on{color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,transparent)}',
+      '.meme-panel .pack-dd-item .hint{font-size:11px;color:var(--dsw-alias-label-secondary);flex:none}',
       '.meme-panel .switch{position:relative;width:36px;height:20px;border-radius:999px;background:var(--dsw-alias-border-l1);cursor:pointer;transition:background .15s ease;flex:none;display:inline-block}',
       '.meme-panel .switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .15s ease}',
       '.meme-panel .switch.on{background:var(--dsw-alias-brand-primary)}',
@@ -55,6 +63,7 @@ window.__ModuleLoader__.load({
     // 分类中文显示(仅 UI,存储/搜索仍是英文 tag)
     const TAG_ZH = {
       angry: '生气', happy: '开心', sad: '难过', shy: '害羞', confused: '困惑',
+      daily: '日常',
       surprised: '惊讶', sleep: '睡觉', meow: '喵喵', morning: '早上好', work: '上班',
       like: '喜欢', see: '看看', reply: '回复', sigh: '叹气', baka: '笨蛋',
       fool: '傻瓜', givemoney: '给钱', color: '彩色', cpu: 'CPU',
@@ -93,23 +102,53 @@ window.__ModuleLoader__.load({
       const [uploadOpen, setUploadOpen] = React.useState(false)
       const [memeRoot, setMemeRoot] = React.useState('')
       const [memeRootInput, setMemeRootInput] = React.useState('')
+      const [packId, setPackId] = React.useState('')
+      const [packs, setPacks] = React.useState([])
+      const [packsDir, setPacksDir] = React.useState('')
+      const [packsDirInput, setPacksDirInput] = React.useState('')
       const [rootNotice, setRootNotice] = React.useState('')
+      const [packOpen, setPackOpen] = React.useState(false)
       const [browseOpen, setBrowseOpen] = React.useState(false)
+      const [browseMode, setBrowseMode] = React.useState('packsDir')
       const [browseList, setBrowseList] = React.useState(null)
       const [browseErr, setBrowseErr] = React.useState('')
+      const applyRoot = (res) => {
+        if (!res || !res.ok) return
+        setMemeRoot(res.memeRoot || '')
+        setMemeRootInput(res.memeRoot || '')
+        setPackId(res.packId || '')
+        setPacks(Array.isArray(res.packs) ? res.packs : [])
+        setPacksDir(res.packsDir || '')
+        setPacksDirInput(res.packsDir || '')
+      }
       React.useEffect(() => {
-        apiPost({ op: 'getMemeRoot' }).then((res) => {
-          if (res && res.ok) { setMemeRoot(res.memeRoot || ''); setMemeRootInput(res.memeRoot || '') }
-        }).catch(() => {})
+        apiPost({ op: 'getMemeRoot' }).then(applyRoot).catch(() => {})
       }, [])
-      const onSaveMemeRoot = async (dirArg) => {
-        const dir = String(dirArg !== undefined ? dirArg : memeRootInput || '').trim()
-        if (!dir) { setRootNotice('目录不能为空'); return }
+      const onSetPack = async (id) => {
+        const packIdNext = String(id || '').trim()
+        if (!packIdNext) return
         try {
-          const res = await apiPost({ op: 'setMemeRoot', memeRoot: dir })
+          setPackOpen(false)
+          const res = await apiPost({ op: 'setPack', packId: packIdNext })
           if (res && res.ok) {
+            applyRoot(res)
             setRootNotice('已切换图库,立即生效')
-            await load(q, tagFilter)  // 刷新列表为新图库内容
+            await load(q, tagFilter)
+          } else {
+            setRootNotice('切换失败: ' + (res && res.error || ''))
+          }
+        } catch (e) {
+          setRootNotice('切换失败')
+        }
+      }
+      const onSavePacksDir = async (dirArg) => {
+        const dir = String(dirArg !== undefined ? dirArg : packsDirInput || '').trim()
+        if (!dir) { setRootNotice('扫描目录不能为空'); return }
+        try {
+          const res = await apiPost({ op: 'setPacksDir', packsDir: dir })
+          if (res && res.ok) {
+            applyRoot(res)
+            setRootNotice('已更新扫描目录')
           } else {
             setRootNotice('保存失败: ' + (res && res.error || ''))
           }
@@ -117,13 +156,32 @@ window.__ModuleLoader__.load({
           setRootNotice('保存失败')
         }
       }
-      const onPickDir = async () => {
+      const onSaveMemeRoot = async (dirArg) => {
+        const dir = String(dirArg !== undefined ? dirArg : memeRootInput || '').trim()
+        if (!dir) { setRootNotice('目录不能为空'); return }
+        try {
+          const res = await apiPost({ op: 'setMemeRoot', memeRoot: dir })
+          if (res && res.ok) {
+            applyRoot(res)
+            setRootNotice('已切换图库,立即生效')
+            await load(q, tagFilter)
+          } else {
+            setRootNotice('保存失败: ' + (res && res.error || ''))
+          }
+        } catch (e) {
+          setRootNotice('保存失败')
+        }
+      }
+      const onPickDir = async (mode) => {
         setBrowseErr('')
+        setBrowseMode(mode || 'packsDir')
         try {
           const workspaces = ctx.get('workspaces')
           if (!workspaces || typeof workspaces.listDirectory !== 'function') return
-          // 默认从当前表情包目录开始浏览(而不是 home)
-          setBrowseList(await workspaces.listDirectory(String(memeRootInput || '').trim() || undefined))
+          const start = mode === 'memeRoot'
+            ? String(memeRootInput || '').trim()
+            : String(packsDirInput || '').trim()
+          setBrowseList(await workspaces.listDirectory(start || undefined))
           setBrowseOpen(true)
         } catch (e) {}
       }
@@ -154,7 +212,7 @@ window.__ModuleLoader__.load({
           try {
             const res = await apiPost({ op: 'importMemePack', dataBase64: b64, name })
             if (res && res.ok) {
-              setMemeRootInput(res.memeRoot || '')
+              applyRoot(res)
               setRootNotice(res.message || '导入成功')
               await load(q, tagFilter)
             } else {
@@ -323,17 +381,51 @@ window.__ModuleLoader__.load({
       ))
 
       return h('div', { className: 'meme-panel' },
-        h('div', { className: 'section-title' }, '图库目录'),
+        h('div', { className: 'section-title' }, '当前图库'),
         h('div', { className: 'row', style: { width: '100%' } },
-          h('input', { type: 'text', value: memeRootInput, onChange: (e) => setMemeRootInput(e.target.value), placeholder: '表情包目录(含 index.db)', style: { flex: 1, minWidth: 160 } }),
-          h('button', { onClick: onPickDir }, '选择目录'),
-          h('button', { onClick: onSaveMemeRoot }, '保存'),
+          h('div', { className: 'pack-dd' },
+            h('button', {
+              type: 'button',
+              className: 'pack-dd-btn',
+              onClick: () => setPackOpen((v) => !v),
+            },
+              h('span', null, (() => {
+                const cur = packs.find((p) => p.id === packId)
+                return cur ? (cur.name + ' (' + (cur.count || 0) + ' 张)') : (packs.length ? '选择图库' : '暂无图库')
+              })()),
+              h('span', { className: 'caret' }, packOpen ? '▲' : '▼'),
+            ),
+            packOpen ? h('div', { className: 'pack-dd-menu' },
+              packs.length === 0
+                ? h('div', { className: 'empty', style: { padding: 12 } }, '还没有可切换的图库')
+                : packs.map((p) => h('button', {
+                  type: 'button',
+                  key: p.id,
+                  className: 'pack-dd-item' + (p.id === packId ? ' on' : ''),
+                  onClick: () => onSetPack(p.id),
+                },
+                  h('span', null, p.name),
+                  h('span', { className: 'hint' },
+                    (p.count || 0) + ' 张' +
+                    (p.source === 'bundled' ? '' : p.source === 'user' ? ' · 导入' : ' · 自定义')),
+                )),
+            ) : null,
+          ),
+        ),
+        memeRoot ? h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', wordBreak: 'break-all' } }, memeRoot) : null,
+        h('div', { className: 'section-title' }, '扫描目录'),
+        h('div', { className: 'row', style: { width: '100%' } },
+          h('input', { type: 'text', value: packsDirInput, onChange: (e) => setPacksDirInput(e.target.value), placeholder: '自动扫描含 index.db 的子文件夹', style: { flex: 1, minWidth: 160 } }),
+          h('button', { onClick: () => onPickDir('packsDir') }, '选择目录'),
+          h('button', { onClick: () => onSavePacksDir() }, '保存'),
         ),
         h('div', { className: 'row' },
           h('button', { onClick: () => { window.location.href = '/dsh-memes-export' } }, '导出图库'),
           h('button', { onClick: () => importFileRef.current && importFileRef.current.click() }, '导入图库'),
+          h('button', { onClick: () => onPickDir('memeRoot') }, '打开其他目录'),
           h('input', { ref: importFileRef, type: 'file', accept: '.zip,application/zip', style: { display: 'none' }, onChange: onImportPack }),
         ),
+        rootNotice ? h('div', { className: 'notice' }, rootNotice) : null,
         h('div', { className: 'row' },
           h('button', { className: 'btn-primary', onClick: () => setUploadOpen(true) }, '上传表情包'),
         ),
@@ -453,7 +545,12 @@ window.__ModuleLoader__.load({
             browseErr ? h('div', { className: 'notice' }, browseErr) : null,
             h('div', { className: 'modal-acts' },
               h('button', { onClick: () => setBrowseOpen(false) }, '取消'),
-              h('button', { className: 'btn-primary', onClick: () => { setMemeRootInput(browseList.path); onSaveMemeRoot(browseList.path); setBrowseOpen(false) } }, '使用此目录'),
+              h('button', { className: 'btn-primary', onClick: () => {
+                const p = browseList.path
+                if (browseMode === 'memeRoot') onSaveMemeRoot(p)
+                else onSavePacksDir(p)
+                setBrowseOpen(false)
+              } }, '使用此目录'),
             ),
           ),
         ) : null,

@@ -16,7 +16,7 @@
 
 ---
 
-宣传页：**[yyh-001.github.io/dsh-meme](https://yyh-001.github.io/dsh-meme/)**（社区合集用 GitHub topic [`dsh-meme-pack`](https://github.com/topics/dsh-meme-pack) 自动收录）
+宣传页：**[yyh-001.github.io/dsh-meme](https://yyh-001.github.io/dsh-meme/)**（表情包合集可预览；仓库加 topic [`dsh-meme-pack`](https://github.com/topics/dsh-meme-pack) + `previews/` 即收录）
 
 **dsh-meme**（原 `dsh-expression`）是 DeepSeek Harness 的表情包插件——找得到、发得出、学得会：
 

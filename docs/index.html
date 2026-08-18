@@ -205,17 +205,62 @@
     .packs h2 { margin: 0 0 .4rem; font-size: 1.2rem; }
     .hint { margin: 0 0 1rem; color: var(--mute); font-size: .86rem; line-height: 1.5; }
     .hint code { color: var(--ember); font-family: ui-monospace, Menlo, Consolas, monospace; }
-    .grid { display: grid; gap: .7rem; }
-    .card {
-      display: block; padding: .95rem 1rem; border-radius: .95rem;
-      border: 1px solid var(--line); background: var(--panel);
-      color: inherit; text-decoration: none;
+    .grid { display: grid; gap: .85rem; }
+    .pack {
+      display: grid; gap: .7rem; width: 100%; padding: .7rem;
+      border-radius: 1rem; border: 1px solid var(--line); background: var(--panel);
+      color: inherit; text-align: left; cursor: pointer; font: inherit;
     }
-    .card:hover { border-color: #4a465c; }
-    .card strong { display: block; }
-    .card p { margin: .3rem 0 0; color: var(--mute); font-size: .82rem; }
-    .card .row { margin-top: .4rem; font-size: .75rem; color: #c9c2b4; }
+    .pack:hover { border-color: #4a465c; }
+    .mosaic {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px;
+      border-radius: .7rem; overflow: hidden; background: #09090c;
+      min-height: 4.6rem;
+    }
+    .mosaic img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+    .mosaic img:nth-child(n+7) { display: none; }
+    @media (max-width: 560px) {
+      .mosaic { grid-template-columns: repeat(4, 1fr); }
+      .mosaic img:nth-child(n+5) { display: none; }
+    }
+    .pack strong { display: block; font-size: .98rem; }
+    .pack p { margin: .25rem 0 0; color: var(--mute); font-size: .82rem; }
+    .pack .row { margin-top: .4rem; font-size: .75rem; color: #c9c2b4; }
     .empty { color: var(--mute); font-size: .88rem; }
+    .ghost-mosaic { height: 4.6rem; background: repeating-linear-gradient(90deg,#1a1822 0 16%,#121018 0 20%); }
+    .modal {
+      position: fixed; inset: 0; z-index: 20;
+      background: rgba(6,5,10,.78); display: grid; place-items: center;
+      padding: 1rem;
+    }
+    .modal[hidden] { display: none; }
+    .sheet {
+      width: min(100%, 42rem); max-height: 88vh; overflow: auto;
+      background: #12111a; border: 1px solid var(--line); border-radius: 1.15rem;
+      padding: 1rem 1rem 1.15rem;
+    }
+    .sheet-top { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+    .sheet-top h3 { margin: 0; font-size: 1.05rem; }
+    .sheet-top p { margin: .3rem 0 0; color: var(--mute); font-size: .82rem; }
+    .x {
+      appearance: none; border: 0; background: #1d1b26; color: var(--cream);
+      width: 2rem; height: 2rem; border-radius: 999px; cursor: pointer; font-size: 1.1rem;
+    }
+    .gallery {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 1rem 0;
+    }
+    @media (max-width: 560px) { .gallery { grid-template-columns: repeat(3, 1fr); } }
+    .gallery button {
+      padding: 0; border: 0; background: #000; border-radius: .55rem; overflow: hidden; cursor: zoom-in;
+    }
+    .gallery img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+    .sheet-link { display: inline-flex; color: var(--tide); font-size: .85rem; }
+    .zoomer {
+      position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.88);
+      display: grid; place-items: center; padding: 1.2rem; cursor: zoom-out;
+    }
+    .zoomer[hidden] { display: none; }
+    .zoomer img { max-width: min(92vw, 28rem); max-height: 86vh; border-radius: .8rem; }
     footer { text-align: center; color: var(--mute); font-size: .75rem; padding-top: 1.6rem; }
     footer a { color: var(--cream); }
     :focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; }
@@ -273,13 +318,28 @@
         <img src="./chat-example.png" alt="真实对话里发表情包" />
       </figure>
       <section class="packs">
-        <h2 data-i="packs">社区合集</h2>
-        <p class="hint" data-i="how">给仓库加上 topic <code>dsh-meme-pack</code>，这里自动收录。ZIP 在插件设置里导入。</p>
+        <h2 data-i="packs">表情包合集</h2>
+        <p class="hint" data-i="how">点开就能预览。自己的仓库加上 topic <code>dsh-meme-pack</code>，并放 <code>previews/</code> 图片，这里会自动出现。</p>
         <div class="grid" id="pack-list"></div>
       </section>
       <footer>MIT · <a href="https://github.com/yyh-001/dsh-meme">yyh-001/dsh-meme</a></footer>
     </div>
   </div>
+
+  <div class="modal" id="modal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="sheet-top">
+        <div>
+          <h3 id="modal-title"></h3>
+          <p id="modal-desc"></p>
+        </div>
+        <button class="x" id="modal-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="gallery" id="gallery"></div>
+      <a class="sheet-link" id="modal-link" href="#" target="_blank" rel="noreferrer"></a>
+    </div>
+  </div>
+  <div class="zoomer" id="zoomer" hidden><img alt=""></div>
 
   <script>
     const INSTALL = "dsh plugin --profile web add dsh-meme"
@@ -293,11 +353,13 @@
         github: "GitHub",
         chat: "对话",
         tap: "点一张贴纸，丢进来",
-        packs: "社区合集",
-        how: "给仓库加上 topic dsh-meme-pack，这里自动收录。ZIP 在插件设置里导入。",
-        empty: "还没有合集。你的仓库可以是第一个。",
+        packs: "表情包合集",
+        how: "点开就能预览。自己的仓库加上 topic dsh-meme-pack，并放 previews/ 图片，这里会自动出现。",
+        empty: "还没有其他合集。你的仓库可以是下一个。",
         fail: "暂时读不到合集。",
         builtin: "插件内置默认图库，装完就能斗。",
+        preview: "预览",
+        openRepo: "打开仓库",
         stars: (n) => n + " stars",
       },
       en: {
@@ -309,11 +371,13 @@
         github: "GitHub",
         chat: "chat",
         tap: "Tap a sticker. Throw it in.",
-        packs: "Community packs",
-        how: "Add topic dsh-meme-pack to your repo. Import the ZIP in settings.",
-        empty: "No packs yet. Yours can be first.",
+        packs: "Sticker packs",
+        how: "Tap a pack to preview. Add topic dsh-meme-pack and a previews/ folder to show up here.",
+        empty: "No other packs yet. Yours can be next.",
         fail: "Could not load packs.",
         builtin: "A default pack ships with the plugin.",
+        preview: "Preview",
+        openRepo: "Open repo",
         stars: (n) => n + " stars",
       },
     }
@@ -370,32 +434,131 @@
         el.textContent = TEXT[lang].stars(Number(repo.stargazers_count).toLocaleString())
       }).catch(() => {})
 
-    const builtin = { html_url: "https://github.com/yyh-001/dsh-meme", builtin: true }
+    const BUILTIN_IMGS = Array.from({ length: 12 }, (_, i) => "./stickers/s" + (i + 1) + ".jpg")
+    const IMG_RE = /\.(png|jpe?g|gif|webp)$/i
+    const builtinPack = {
+      id: "official-001",
+      full_name: "official-001",
+      html_url: "https://github.com/yyh-001/dsh-meme",
+      builtin: true,
+      previews: BUILTIN_IMGS,
+    }
+
+    function esc(s) {
+      return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]))
+    }
     function fmtStars(n) { return n >= 1000 ? (Math.round(n / 100) / 10) + "k" : String(n) }
+
+    async function loadPreviews(repo) {
+      if (repo.builtin) return BUILTIN_IMGS.slice()
+      const [owner, name] = repo.full_name.split("/")
+      const branch = repo.default_branch || "main"
+      for (const dir of ["previews", "preview", "stickers"]) {
+        try {
+          const r = await fetch("https://api.github.com/repos/" + owner + "/" + name + "/contents/" + dir)
+          if (!r.ok) continue
+          const files = await r.json()
+          if (!Array.isArray(files)) continue
+          const urls = files.filter((f) => f.type === "file" && IMG_RE.test(f.name)).slice(0, 24).map((f) => f.download_url).filter(Boolean)
+          if (urls.length) return urls
+        } catch {}
+      }
+      try {
+        const r = await fetch("https://api.github.com/repos/" + owner + "/" + name + "/git/trees/" + branch + "?recursive=1")
+        if (!r.ok) return []
+        const data = await r.json()
+        const files = (data.tree || []).filter((t) => t.type === "blob" && IMG_RE.test(t.path) && t.size && t.size < 2500000)
+        const pref = files.filter((t) => /(?:^|\/)(previews?|stickers|memes)\//i.test(t.path))
+        const pool = pref.length ? pref : files
+        return pool.slice(0, 24).map((t) => "https://raw.githubusercontent.com/" + owner + "/" + name + "/" + branch + "/" + t.path.split("/").map(encodeURIComponent).join("/"))
+      } catch { return [] }
+    }
+
+    function mosaicHtml(urls) {
+      if (!urls || !urls.length) return '<div class="ghost-mosaic"></div>'
+      return '<div class="mosaic">' + urls.slice(0, 6).map((u) => '<img src="' + esc(u) + '" alt="">').join("") + "</div>"
+    }
+
     function renderPacks(items, err) {
       const root = document.getElementById("pack-list")
       const t = TEXT[lang]
       if (err && !(items && items.length)) { root.innerHTML = '<p class="empty">' + t.fail + "</p>"; return }
-      const extra = (items || []).filter((p) => p.full_name !== "yyh-001/dsh-meme")
-      let html = '<a class="card" href="' + builtin.html_url + '"><strong>official-001</strong><p>' + t.builtin + "</p></a>"
-      html += extra.map((p) => '<a class="card" href="' + p.html_url + '" target="_blank" rel="noreferrer"><strong>' + p.full_name + "</strong><p>" + (p.description || "") + '</p><div class="row">★ ' + fmtStars(p.stargazers_count) + "</div></a>").join("")
-      if (!extra.length) html += '<p class="empty">' + t.empty + "</p>"
-      root.innerHTML = html
+      const packs = [builtinPack].concat(items || [])
+      root.innerHTML = packs.map((p, i) => {
+        const title = p.builtin ? "official-001" : p.full_name
+        const desc = p.builtin ? t.builtin : (p.description || "")
+        const count = (p.previews && p.previews.length) ? t.preview + " " + p.previews.length : t.preview
+        const star = p.builtin || p.stargazers_count == null ? "" : " · ★ " + fmtStars(p.stargazers_count)
+        return '<button class="pack" type="button" data-i="' + i + '">' + mosaicHtml(p.previews) +
+          "<strong>" + esc(title) + "</strong><p>" + esc(desc) + '</p><div class="row">' + count + star + "</div></button>"
+      }).join("") + ((items && items.length) ? "" : '<p class="empty">' + t.empty + "</p>")
+      window.__packList = packs
+    }
+
+    function openPack(p) {
+      const t = TEXT[lang]
+      document.getElementById("modal-title").textContent = p.builtin ? "official-001" : p.full_name
+      document.getElementById("modal-desc").textContent = p.builtin ? t.builtin : (p.description || "")
+      const link = document.getElementById("modal-link")
+      link.href = p.html_url
+      link.textContent = t.openRepo
+      const urls = p.previews || []
+      document.getElementById("gallery").innerHTML = urls.map((u) =>
+        '<button type="button"><img src="' + esc(u) + '" alt=""></button>'
+      ).join("") || '<p class="empty">' + t.fail + "</p>"
+      document.getElementById("modal").hidden = false
+    }
+
+    document.getElementById("pack-list").addEventListener("click", (e) => {
+      const btn = e.target.closest(".pack")
+      if (!btn) return
+      const p = (window.__packList || [])[Number(btn.dataset.i)]
+      if (p) openPack(p)
+    })
+    document.getElementById("modal-close").onclick = () => { document.getElementById("modal").hidden = true }
+    document.getElementById("modal").addEventListener("click", (e) => {
+      if (e.target.id === "modal") document.getElementById("modal").hidden = true
+    })
+    document.getElementById("gallery").addEventListener("click", (e) => {
+      const img = e.target.closest("img")
+      if (!img) return
+      const z = document.getElementById("zoomer")
+      z.querySelector("img").src = img.src
+      z.hidden = false
+    })
+    document.getElementById("zoomer").addEventListener("click", () => { document.getElementById("zoomer").hidden = true })
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return
+      document.getElementById("zoomer").hidden = true
+      document.getElementById("modal").hidden = true
+    })
+
+    function hydrate(repos) {
+      const extra = (repos || []).filter((p) => p.full_name !== "yyh-001/dsh-meme")
+      extra.forEach((p) => { if (!p.previews) p.previews = [] })
+      window.__packs = extra
+      renderPacks(extra)
+      extra.forEach(async (p) => {
+        p.previews = await loadPreviews(p)
+        renderPacks(window.__packs)
+      })
     }
 
     Promise.all([
       fetch("https://api.github.com/search/repositories?q=topic:dsh-meme-pack&sort=stars").then((r) => r.ok ? r.json() : Promise.reject()),
       fetch("./packs.json").then((r) => r.ok ? r.json() : []),
     ]).then(([live, cached]) => {
-      window.__packs = (live && live.items) || cached || []
-      renderPacks(window.__packs)
+      hydrate((live && live.items) || cached || [])
     }).catch(() => {
-      fetch("./packs.json").then((r) => r.ok ? r.json() : []).then((c) => { window.__packs = c || []; renderPacks(window.__packs) })
+      fetch("./packs.json").then((r) => r.ok ? r.json() : []).then((c) => hydrate(c || []))
         .catch(() => { window.__packErr = true; renderPacks([], true) })
     })
 
     applyLang()
     renderPacks([])
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setTimeout(() => document.querySelector(".s2").click(), 420)
+    }
   </script>
 </body>
 </html>

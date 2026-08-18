@@ -15,9 +15,9 @@ export function bundledPacksDir() {
   return fileURLToPath(new URL('./memes', import.meta.url))
 }
 
-/** 内置默认图库根：随插件分发的 memes/official-001（零迁移）。可用 memeRoot 覆盖。 */
+/** 内置默认图库根：随插件分发的 memes/dafeiyu-001（大肥鱼）。可用 memeRoot 覆盖。 */
 export function defaultMemeRoot() {
-  return join(bundledPacksDir(), 'official-001')
+  return join(bundledPacksDir(), 'dafeiyu-001')
 }
 
 /** 用户导入/自建图库的扫描目录。 */

@@ -740,7 +740,8 @@ window.__ModuleLoader__.load({
       const loadMemeIndex = () => {
         if (memeIndex || memeIndexLoading) return
         memeIndexLoading = true
-        fetch('/dsh-memes-api')
+        // 拉全部包(带包前缀 URL),任意组的 [表情: 描述] 都能配图
+        fetch('/dsh-memes-api?packId=all')
           .then((r) => r.json())
           .then((res) => {
             memeIndex = new Map()

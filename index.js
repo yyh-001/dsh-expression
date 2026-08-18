@@ -183,16 +183,32 @@ export function apply(ctx, config) {
         path: ROUTE,
         handler(req, res) {
           const pathname = String(req.url || '').split('?')[0]
-          const stored = pathname.startsWith(ROUTE + '/') ? pathname.slice(ROUTE.length + 1) : null
+          const raw = pathname.startsWith(ROUTE + '/') ? pathname.slice(ROUTE.length + 1) : null
+          // 带包前缀格式:/dsh-memes/<packId>/<rel>(跨包发图/配图);无前缀按当前激活包(旧格式兼容)
+          let root = memes.root
+          let stored = raw
+          if (raw) {
+            const slash = raw.indexOf('/')
+            const first = slash > 0 ? raw.slice(0, slash) : ''
+            if (first) {
+              let hit = null
+              try { hit = listAllPacks().find((p) => p.id === first) } catch { /* 扫描失败走默认 */ }
+              if (hit) {
+                root = hit.path
+                stored = raw.slice(slash + 1)
+              }
+            }
+          }
           // 每次请求动态构建白名单:静态快照会漏掉新上传的图(历史教训:上传后 404 图片不显示)
-          const allowed = new Set(memes.list().memes.map((m) => m.path))
-          if (!stored || !allowed.has(stored)) {
+          let allowed = null
+          try { allowed = new Set(new MemesStore(root).list().memes.map((m) => m.path)) } catch { allowed = null }
+          if (!stored || !allowed || !allowed.has(stored)) {
             res.writeHead(404, { 'Content-Type': 'text/plain' })
             res.end('not found')
             return
           }
           try {
-            const file = join(memes.root, stored)
+            const file = join(root, stored)
             const bytes = readFileSync(file)
             const ext = stored.includes('.') ? stored.split('.').pop().toLowerCase() : ''
             res.writeHead(200, {
@@ -240,20 +256,22 @@ export function apply(ctx, config) {
   ctx.on('companionQq/available', register)
 
   // ---- 管理 API + 自包含管理面板(HTTP,重启不丢,任何会话可访问) ----
+  // 运行时切换图库目录:校验 → 持久化设置 → 原子替换 memes/adminDb。
+  // 工具/路由/API 闭包引用变量,替换后立即指向新图库,无需重启。
+  // packsDirNow/listAllPacks 定义在 apply 直接作用域:图片路由(注册于
+  // if(webServer) 之外)也要按包取图,块内看不到它们(历史教训)。
+  const packsDirNow = () => readSettings().packsDir || defaultPacksDir()
+  const listAllPacks = () => {
+    const packs = scanPacks(packsDirNow())
+    const root = resolve(memes.root)
+    if (!packs.some((p) => resolve(p.path) === root)) {
+      const meta = readPackMeta(memes.root, readSettings().packId || '_custom', 'custom')
+      packs.unshift(meta)
+    }
+    return packs
+  }
   if (webServer) {
     let adminDb = new DatabaseSync(join(memes.root, 'index.db')) // 可写连接
-    // 运行时切换图库目录:校验 → 持久化设置 → 原子替换 memes/adminDb。
-    // 工具/路由/API 闭包引用变量,替换后立即指向新图库,无需重启。
-    const packsDirNow = () => readSettings().packsDir || defaultPacksDir()
-    const listAllPacks = () => {
-      const packs = scanPacks(packsDirNow())
-      const root = resolve(memes.root)
-      if (!packs.some((p) => resolve(p.path) === root)) {
-        const meta = readPackMeta(memes.root, readSettings().packId || '_custom', 'custom')
-        packs.unshift(meta)
-      }
-      return packs
-    }
     const packPayload = () => {
       const s = readSettings()
       const packs = listAllPacks()
@@ -463,7 +481,20 @@ export function apply(ctx, config) {
           const packs = listAllPacks()
           const activeId = readSettings().packId
             || ((packs.find((p) => resolve(p.path) === resolve(memes.root)) || {}).id || '')
+          const urlFor = (m, pid) => ({ ...m, url: ROUTE + '/' + pid + '/' + m.path })
+          const packList = () => packs.map((p) => ({ id: p.id, name: p.name, count: p.count }))
           const packId = u.searchParams.get('packId') || activeId
+          // packId=all:合并全部包,url 带包前缀(悬浮窗配图索引用,跨包也能渲染/取图)
+          if (packId === 'all') {
+            const all = []
+            for (const p of packs) {
+              try {
+                for (const m of new MemesStore(p.path).list().memes) all.push(urlFor(m, p.id))
+              } catch { /* 坏库跳过 */ }
+            }
+            json(res, { ok: true, total: all.length, tags: [], packId: activeId, packs: packList(), memes: all })
+            return
+          }
           const pack = packs.find((p) => p.id === packId)
           let rows = []
           let tags = []
@@ -478,11 +509,12 @@ export function apply(ctx, config) {
             rows = r.memes
             tags = r.tags
           }
+          const pid = pack ? pack.id : activeId
           json(res, {
             ok: true, total: rows.length, tags,
-            packId: pack ? pack.id : activeId,
-            packs: packs.map((p) => ({ id: p.id, name: p.name, count: p.count })),
-            memes: rows.map((m) => ({ ...m, url: ROUTE + '/' + m.path })),
+            packId: pid,
+            packs: packList(),
+            memes: rows.map((m) => urlFor(m, pid)),
           })
           return
         }
